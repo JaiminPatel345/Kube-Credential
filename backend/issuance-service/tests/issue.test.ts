@@ -1,3 +1,4 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import request from 'supertest';
 import type { Express } from 'express';
 import type DatabaseConstructor from 'better-sqlite3';
@@ -8,14 +9,22 @@ let app: Express;
 let initializeDatabase: () => Promise<void>;
 let closeDatabase: () => Promise<void>;
 let getDatabase: () => BetterSqliteDatabase;
+let originalFetch: typeof global.fetch;
+
+const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
 
 beforeAll(async () => {
   process.env.NODE_ENV = 'test';
   process.env.DATABASE_PATH = ':memory:';
   process.env.HOSTNAME = 'worker-test';
   process.env.PORT = '0';
+  process.env.VERIFICATION_SERVICE_URL = 'http://localhost:3002';
+  process.env.SYNC_SECRET = '';
 
   jest.resetModules();
+
+  originalFetch = global.fetch;
+  global.fetch = mockFetch as unknown as typeof fetch;
 
   const indexModule = await import('../src/index');
   const databaseModule = await import('../src/utils/database');
@@ -30,11 +39,19 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await closeDatabase();
+  global.fetch = originalFetch;
 });
 
 beforeEach(() => {
   const db = getDatabase();
   db.prepare('DELETE FROM credentials').run();
+  mockFetch.mockReset();
+  mockFetch.mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ success: true }),
+    text: async () => ''
+  } as Response);
 });
 
 describe('POST /api/issue', () => {
@@ -66,6 +83,15 @@ describe('POST /api/issue', () => {
     expect(response.body.credential.id).toHaveLength(64);
     expect(response.body.credential.hash).toHaveLength(64);
     expect(Date.parse(response.body.credential.issuedAt)).not.toBeNaN();
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledWith(
+      'http://localhost:3002/internal/sync',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({ 'Content-Type': 'application/json' })
+      })
+    );
   });
 
   it('rejects duplicate credential issuance requests', async () => {
@@ -85,6 +111,8 @@ describe('POST /api/issue', () => {
       success: false,
       message: 'Credential already issued'
     });
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it('returns validation errors when payload is invalid', async () => {
@@ -100,5 +128,32 @@ describe('POST /api/issue', () => {
     expect(response.body.success).toBe(false);
     expect(response.body.message).toBe('Invalid request payload');
     expect(Array.isArray(response.body.errors)).toBe(true);
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('retries sync before logging failure but still responds with success', async () => {
+    const payload = {
+      name: 'Charlie Day',
+      credentialType: 'access-card',
+      details: {
+        cardNumber: 'AC-7777'
+      }
+    };
+
+    const networkError = new Error('network down');
+    mockFetch
+      .mockRejectedValueOnce(networkError)
+      .mockRejectedValueOnce(networkError)
+      .mockRejectedValueOnce(networkError);
+
+    const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+    await request(app).post('/api/issue').send(payload).expect(201);
+
+    expect(mockFetch).toHaveBeenCalledTimes(3);
+    expect(consoleSpy).toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
   });
 });

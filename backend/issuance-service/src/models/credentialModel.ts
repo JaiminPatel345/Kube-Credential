@@ -40,5 +40,21 @@ export const credentialModel = {
       entity.hash
     );
     return { ...entity };
+  },
+
+  listIssuedAfter(issuedAfter?: string): CredentialEntity[] {
+    const db = getDatabase();
+    const query = issuedAfter
+      ? `SELECT id, name, credentialType, details, issuedBy, issuedAt, hash FROM credentials
+         WHERE issuedAt > ?
+         ORDER BY issuedAt ASC`
+      : `SELECT id, name, credentialType, details, issuedBy, issuedAt, hash FROM credentials
+         ORDER BY issuedAt ASC`;
+
+    const rows = issuedAfter
+      ? (db.prepare(query).all(issuedAfter) as CredentialRow[])
+      : (db.prepare(query).all() as CredentialRow[]);
+
+    return rows.map((row) => mapRow(row));
   }
 };

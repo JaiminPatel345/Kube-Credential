@@ -4,6 +4,7 @@ import { generateDeterministicId, generateIntegrityHash } from '../utils/hash';
 import { credentialModel } from '../models/credentialModel';
 import { AppError } from '../utils/errors';
 import { getWorkerLabel, serviceConfig } from '../config';
+import { syncCredentialWithVerificationService } from '../utils/sync';
 
 const buildCredentialPayload = (
   data: IssueCredentialInput,
@@ -17,7 +18,7 @@ const buildCredentialPayload = (
   issuedAt: new Date().toISOString()
 });
 
-export const issueCredential: RequestHandler = (req, res, next) => {
+export const issueCredential: RequestHandler = async (req, res, next) => {
   try {
     const input = IssueCredentialSchema.parse(req.body);
 
@@ -35,6 +36,8 @@ export const issueCredential: RequestHandler = (req, res, next) => {
       ...credentialWithoutHash,
       hash
     });
+
+    await syncCredentialWithVerificationService(credential);
 
     res.status(201).json({
       success: true,

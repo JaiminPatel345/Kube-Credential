@@ -1,10 +1,10 @@
 import express, { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
-import issueRoutes from './routes/issueRoutes';
-import internalRoutes from './routes/internalRoutes';
+import router from './routes';
 import { AppError, isAppError } from './utils/errors';
 import { getWorkerLabel, serviceConfig } from './config';
 import { initializeDatabase } from './utils/database';
+import { performCatchUpSync } from './utils/sync';
 
 export const createApp = () => {
   const app = express();
@@ -19,8 +19,7 @@ export const createApp = () => {
     });
   });
 
-  app.use('/api', issueRoutes);
-  app.use('/internal', internalRoutes);
+  app.use(router);
 
   app.use((_req: Request, res: Response) => {
     res.status(404).json({ success: false, message: 'Not Found' });
@@ -60,11 +59,27 @@ const app = createApp();
 
 if (process.env.NODE_ENV !== 'test') {
   initializeDatabase()
-    .then(() => {
+    .then(async () => {
+      try {
+        const inserted = await performCatchUpSync();
+        if (inserted > 0) {
+          // eslint-disable-next-line no-console
+          console.info(`Catch-up sync imported ${inserted} credential(s)`);
+        }
+      } catch (error) {
+        if (error instanceof AppError) {
+          // eslint-disable-next-line no-console
+          console.error('Catch-up sync failed', { message: error.message, status: error.statusCode });
+        } else {
+          // eslint-disable-next-line no-console
+          console.error('Catch-up sync failed', error);
+        }
+      }
+
       const { port } = serviceConfig;
       app.listen(port, () => {
         // eslint-disable-next-line no-console
-        console.info(`Issuance service listening on port ${port}`);
+        console.info(`Verification service listening on port ${port}`);
       });
     })
     .catch((error) => {

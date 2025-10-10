@@ -4,9 +4,9 @@ import path from 'path';
 
 dotenv.config();
 
-const DEFAULT_PORT = 3001;
-const DEFAULT_DB_RELATIVE = 'data/credentials.db';
-const DEFAULT_VERIFICATION_SERVICE_URL = 'http://localhost:3002';
+const DEFAULT_PORT = 3002;
+const DEFAULT_DB_RELATIVE = 'data/verification.db';
+const DEFAULT_ISSUANCE_SERVICE_URL = 'http://localhost:3001';
 
 const parsePort = (value: string | undefined): number => {
   if (!value) {
@@ -40,30 +40,29 @@ const resolveDatabasePath = (value: string | undefined): string => {
   return resolvedPath;
 };
 
-const workerId = process.env.HOSTNAME?.trim() || 'unknown';
-const verificationServiceUrl = (() => {
-  const raw = process.env.VERIFICATION_SERVICE_URL?.trim();
+const workerId = process.env.HOSTNAME?.trim() || 'verification-service';
+const syncSecret = process.env.SYNC_SECRET?.trim() || null;
+const issuanceServiceUrl = (() => {
+  const raw = process.env.ISSUANCE_SERVICE_URL?.trim();
 
   if (!raw) {
-    return DEFAULT_VERIFICATION_SERVICE_URL;
+    return DEFAULT_ISSUANCE_SERVICE_URL;
   }
 
   try {
     return new URL(raw).toString();
   } catch (_error) {
-    return DEFAULT_VERIFICATION_SERVICE_URL;
+    return DEFAULT_ISSUANCE_SERVICE_URL;
   }
 })();
-
-const syncSecret = process.env.SYNC_SECRET?.trim() || null;
 
 export const serviceConfig = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parsePort(process.env.PORT),
   databasePath: resolveDatabasePath(process.env.DATABASE_PATH),
   workerId,
-  verificationServiceUrl,
-  syncSecret
+  syncSecret,
+  issuanceServiceUrl
 };
 
 export const getWorkerLabel = (): string => {
