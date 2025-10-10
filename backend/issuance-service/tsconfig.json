@@ -7,9 +7,10 @@
 
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
-    "module": "commonjs",
-    "target": "es2022",
-    "types": [],
+  "module": "commonjs",
+  "target": "es2022",
+  "moduleResolution": "node",
+  "types": ["node", "jest"],
     // For nodejs:
     "lib": ["es2022"],
     // "types": ["node"],
@@ -32,7 +33,11 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true
 
-  }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
