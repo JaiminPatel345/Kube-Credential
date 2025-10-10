@@ -1,40 +1,39 @@
-# Stage 1: Dependencies
+# Stage 1: Dependencies (shared)
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package.json yarn.lock* ./
+COPY package.json yarn.lock ./
 RUN yarn install --frozen-lockfile
 
-# Stage 2: Development
+# Stage 2: Development (with hot reload)
 FROM node:20-alpine AS development
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --chown=node:node . .
 USER node
-EXPOSE 3001
-CMD ["yarn", "dev"]
+EXPOSE 5173
+CMD ["yarn", "dev", "--host", "0.0.0.0"]
 
 # Stage 3: Build
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY --chown=node:node . .
-USER node
+COPY . .
 RUN yarn build
 
 # Stage 4: Production
 FROM node:20-alpine AS production
-ENV NODE_ENV=production
-ENV PORT=3001
-ENV DATABASE_PATH=/data/credentials.db
 WORKDIR /app
 
-COPY --chown=node:node package.json yarn.lock* ./
+# Copy package files
+COPY package.json yarn.lock ./
+
+# Install only production dependencies
 RUN yarn install --frozen-lockfile --production
 
-COPY --chown=node:node --from=build /app/dist ./dist
+# Copy built application
+COPY --from=build /app/dist ./dist
 
-USER node
+EXPOSE 5173
 
-EXPOSE 3001
-VOLUME ["/data"]
-CMD ["node", "dist/index.js"]
+# Run preview server
+CMD ["yarn", "preview", "--host", "0.0.0.0", "--port", "${PORT:-5173}"]

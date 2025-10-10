@@ -7,7 +7,8 @@ dotenv.config();
 const DEFAULT_PORT = 3001;
 const DEFAULT_DB_RELATIVE = 'data/credentials.db';
 const DEFAULT_VERIFICATION_SERVICE_URL = 'http://localhost:3002';
-const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173'];
+const DEFAULT_FRONTEND_URL = 'http://localhost:5173';
+const DEFAULT_ALLOWED_ORIGINS = [DEFAULT_FRONTEND_URL];
 
 const parsePort = (value: string | undefined): number => {
   if (!value) {
@@ -42,11 +43,30 @@ const resolveDatabasePath = (value: string | undefined): string => {
 };
 
 const workerId = process.env.HOSTNAME?.trim() || 'unknown';
-const parseCorsOrigins = (value: string | undefined): string[] => {
+
+const parseFrontendUrl = (value: string | undefined): string => {
   const raw = value?.trim();
 
   if (!raw) {
-    return DEFAULT_ALLOWED_ORIGINS;
+    const nodeEnv = process.env.NODE_ENV || 'development';
+    if (nodeEnv === 'production') {
+      throw new Error('FRONTEND_URL environment variable is required in production');
+    }
+    return DEFAULT_FRONTEND_URL;
+  }
+
+  try {
+    return new URL(raw).origin;
+  } catch (_error) {
+    throw new Error(`Invalid FRONTEND_URL: ${raw}. Must be a valid URL.`);
+  }
+};
+
+const parseCorsOrigins = (value: string | undefined, frontendUrl: string): string[] => {
+  const raw = value?.trim();
+
+  if (!raw) {
+    return [frontendUrl];
   }
 
   const origins = raw
@@ -55,7 +75,7 @@ const parseCorsOrigins = (value: string | undefined): string[] => {
     .filter((origin) => origin.length > 0);
 
   if (origins.length === 0) {
-    return DEFAULT_ALLOWED_ORIGINS;
+    return [frontendUrl];
   }
 
   if (origins.includes('*')) {
@@ -73,7 +93,7 @@ const parseCorsOrigins = (value: string | undefined): string[] => {
     .filter((origin): origin is string => origin !== null);
 
   if (validated.length === 0) {
-    return DEFAULT_ALLOWED_ORIGINS;
+    return [frontendUrl];
   }
 
   return Array.from(new Set(validated));
@@ -94,7 +114,8 @@ const verificationServiceUrl = (() => {
 })();
 
 const syncSecret = process.env.SYNC_SECRET?.trim() || null;
-const corsAllowedOrigins = parseCorsOrigins(process.env.CORS_ALLOWED_ORIGINS);
+const frontendUrl = parseFrontendUrl(process.env.FRONTEND_URL);
+const corsAllowedOrigins = parseCorsOrigins(process.env.CORS_ALLOWED_ORIGINS, frontendUrl);
 
 export const serviceConfig = {
   nodeEnv: process.env.NODE_ENV || 'development',
