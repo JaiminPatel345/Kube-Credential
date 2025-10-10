@@ -1,35 +1,55 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { NavLink, Route, Routes } from 'react-router-dom';
+import IssuancePage from './pages/IssuancePage';
+import VerificationPage from './pages/VerificationPage';
 
-function App() {
-  const [count, setCount] = useState(0)
+const navigation = [
+  { label: 'Issuance', to: '/' },
+  { label: 'Verification', to: '/verify' }
+];
 
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+const App = () => (
+  <div className="min-h-screen bg-slate-100">
+    <nav className="border-b border-slate-200 bg-white/80 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 md:px-6 lg:px-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-lg font-bold text-brand">
+            KC
+          </div>
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.3em] text-brand-dark">Kube Credential</p>
+            <p className="text-xs text-slate-500">Secure issuance & verification</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 p-1 text-sm font-semibold text-slate-600 shadow-sm">
+          {navigation.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }: { isActive: boolean }) =>
+                `rounded-full px-4 py-2 transition ${
+                  isActive
+                    ? 'bg-white text-brand shadow-sm ring-1 ring-brand/40'
+                    : 'hover:text-brand-dark'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    </nav>
 
-export default App
+    <main className="pb-16">
+      <Routes>
+        <Route path="/" element={<IssuancePage />} />
+        <Route path="/verify" element={<VerificationPage />} />
+        <Route path="*" element={<IssuancePage />} />
+      </Routes>
+    </main>
+  </div>
+);
+
+export default App;
