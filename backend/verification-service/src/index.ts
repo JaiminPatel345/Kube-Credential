@@ -7,6 +7,16 @@ import { getWorkerLabel, serviceConfig } from './config';
 import { initializeDatabase } from './utils/database';
 import { performCatchUpSync } from './utils/sync';
 
+const FIELD_LABELS: Record<string, string> = {
+  id: 'Id',
+  name: 'Name',
+  credentialType: 'Credential Type',
+  issuedBy: 'Issued By',
+  issuedAt: 'Issued At',
+  hash: 'Hash',
+  details: 'Details'
+};
+
 export const createApp = () => {
   const app = express();
 
@@ -40,10 +50,47 @@ export const createApp = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ZodError) {
+      const formattedIssues = err.issues.map((issue) => ({
+        path: issue.path,
+        message: issue.message
+      }));
+
+      const missingFields = new Set<string>();
+      const otherMessages = new Set<string>();
+
+      formattedIssues.forEach(({ path, message }) => {
+        const rootKey = path[0] ? String(path[0]) : undefined;
+        const label = rootKey && FIELD_LABELS[rootKey] ? FIELD_LABELS[rootKey] : rootKey;
+
+        if (/required/i.test(message) || /must include at least one entry/i.test(message)) {
+          missingFields.add(label ?? 'Field');
+        } else {
+          otherMessages.add(message);
+        }
+      });
+
+      let message: string;
+
+      if (missingFields.size > 0) {
+        const fieldList = Array.from(missingFields);
+        message =
+          fieldList.length === 1
+            ? `${fieldList[0]} is required`
+            : `Missing required fields: ${fieldList.join(', ')}`;
+
+        if (otherMessages.size > 0) {
+          message = `${message}; ${Array.from(otherMessages).join('; ')}`;
+        }
+      } else if (otherMessages.size > 0) {
+        message = Array.from(otherMessages).join('; ');
+      } else {
+        message = 'Invalid request payload';
+      }
+
       return res.status(400).json({
         success: false,
-        message: 'Invalid request payload',
-        errors: err.issues
+        message,
+        errors: formattedIssues
       });
     }
 

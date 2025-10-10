@@ -1,25 +1,79 @@
 import { z } from 'zod';
 
 const isoDateString = z
-  .string()
+  .string({ required_error: 'Issued At is required' })
+  .trim()
+  .min(1, { message: 'Issued At is required' })
   .refine((value: string) => !Number.isNaN(Date.parse(value)), {
-    message: 'issuedAt must be a valid ISO date string'
+    message: 'Issued At must be a valid ISO date string'
   });
 
 const detailsSchema = z
-  .object({})
-  .catchall(z.any())
-  .refine((obj: Record<string, unknown>) => Object.keys(obj).length > 0, {
-    message: 'details must include at least one property'
+  .record(z.any(), {
+    required_error: 'Details must include at least one entry'
+  })
+  .refine((value) => !Array.isArray(value), {
+    message: 'Details must be a JSON object'
+  })
+  .superRefine((details, ctx) => {
+    const entries = Object.entries(details ?? {});
+
+    if (entries.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Details must include at least one entry',
+        path: ['details']
+      });
+      return;
+    }
+
+    entries.forEach(([rawKey, rawValue]) => {
+      const key = rawKey.trim();
+      if (key.length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Detail keys cannot be blank',
+          path: ['details', rawKey]
+        });
+        return;
+      }
+
+      if (rawValue === null || rawValue === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Value for "${key}" cannot be empty`,
+          path: ['details', rawKey]
+        });
+        return;
+      }
+
+      if (typeof rawValue === 'string' && rawValue.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Value for "${key}" cannot be empty`,
+          path: ['details', rawKey]
+        });
+      }
+    });
   });
 
 export const CredentialPayloadSchema = z.object({
-  id: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  credentialType: z.string().trim().min(1),
+  id: z.string({ required_error: 'Id is required' }).trim().min(1, { message: 'Id is required' }),
+  name: z.string({ required_error: 'Name is required' }).trim().min(1, { message: 'Name is required' }),
+  credentialType: z
+    .string({ required_error: 'Credential Type is required' })
+    .trim()
+    .min(1, { message: 'Credential Type is required' }),
   details: detailsSchema,
-  hash: z.string().trim().length(64),
-  issuedBy: z.string().trim().min(1),
+  hash: z
+    .string({ required_error: 'Hash is required' })
+    .trim()
+    .min(1, { message: 'Hash is required' })
+    .length(64, { message: 'Hash must be 64 characters long' }),
+  issuedBy: z
+    .string({ required_error: 'Issued By is required' })
+    .trim()
+    .min(1, { message: 'Issued By is required' }),
   issuedAt: isoDateString
 });
 

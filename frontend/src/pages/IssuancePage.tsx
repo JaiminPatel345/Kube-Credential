@@ -43,9 +43,7 @@ const validateDetails = (details: string) => {
     if (!parsed || typeof parsed !== 'object') {
       return 'Details must be a JSON object';
     }
-    if (Object.keys(parsed as Record<string, unknown>).length === 0) {
-      return 'Details must include at least one property';
-    }
+    // Allow empty details object
     return null;
   } catch (error) {
     if (error instanceof Error) {
@@ -90,8 +88,10 @@ const IssuancePage = () => {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [inputMode, setInputMode] = useState<'simple' | 'raw'>('simple');
   const [detailsMode, setDetailsMode] = useState<DetailsMode>('simple');
   const [keyValuePairs, setKeyValuePairs] = useState<Record<string, string>>({});
+  const [rawJsonInput, setRawJsonInput] = useState('');
   const [editorKey, setEditorKey] = useState(0);
 
   const isLoading = requestState.status === 'loading';
@@ -154,12 +154,7 @@ const IssuancePage = () => {
     
     // Validate based on mode
     if (detailsMode === 'simple') {
-      const hasValidPairs = Object.entries(keyValuePairs).some(
-        ([key, value]) => key.trim() !== '' || value.trim() !== ''
-      );
-      if (!hasValidPairs) {
-        validationErrors.details = 'At least one field with a key is required';
-      }
+      // Details can be empty - no validation needed for simple mode
     } else {
       const detailsError = validateDetails(formValues.details);
       if (detailsError) {
@@ -172,21 +167,48 @@ const IssuancePage = () => {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const validationErrors = validate(values);
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      setRequestState({ status: 'idle' });
-      return;
-    }
-
+    let name: string;
+    let credentialType: string;
     let detailsPayload: Record<string, unknown>;
-    try {
-      detailsPayload = JSON.parse(values.details);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid JSON';
-      setErrors((prev) => ({ ...prev, details: `Invalid JSON: ${message}` }));
-      setRequestState({ status: 'idle' });
-      return;
+
+    if (inputMode === 'raw') {
+      // Parse from raw JSON
+      try {
+        const parsed = JSON.parse(rawJsonInput);
+        if (!parsed.name || !parsed.credentialType) {
+          setErrors({ details: 'JSON must include "name" and "credentialType" fields' });
+          setToastMessage('JSON must include "name" and "credentialType" fields');
+          return;
+        }
+        name = parsed.name;
+        credentialType = parsed.credentialType;
+        detailsPayload = parsed.details || {};
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid JSON';
+        setErrors({ details: `Invalid JSON: ${message}` });
+        setToastMessage(`Invalid JSON: ${message}`);
+        return;
+      }
+    } else {
+      // Validate simple form
+      const validationErrors = validate(values);
+      if (Object.keys(validationErrors).length > 0) {
+        setErrors(validationErrors);
+        setRequestState({ status: 'idle' });
+        return;
+      }
+
+      try {
+        detailsPayload = JSON.parse(values.details);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid JSON';
+        setErrors((prev) => ({ ...prev, details: `Invalid JSON: ${message}` }));
+        setRequestState({ status: 'idle' });
+        return;
+      }
+
+      name = values.name.trim();
+      credentialType = values.credentialType.trim();
     }
 
     setToastMessage(null);
@@ -194,8 +216,8 @@ const IssuancePage = () => {
 
     try {
       const response = await issueCredential({
-        name: values.name.trim(),
-        credentialType: values.credentialType.trim(),
+        name,
+        credentialType,
         details: detailsPayload
       });
 
@@ -236,6 +258,49 @@ const IssuancePage = () => {
     return null;
   }, [requestState]);
 
+  const handleInputModeChange = (newMode: 'simple' | 'raw') => {
+    if (newMode === inputMode) return;
+
+    if (newMode === 'raw') {
+      // Convert simple form to JSON
+      const credential = {
+        name: values.name,
+        credentialType: values.credentialType,
+        details: keyValuePairs
+      };
+      setRawJsonInput(JSON.stringify(credential, null, 2));
+      setInputMode('raw');
+    } else {
+      // Convert JSON to simple form
+      try {
+        const parsed = JSON.parse(rawJsonInput);
+        setValues({
+          name: parsed.name || '',
+          credentialType: parsed.credentialType || '',
+          details: JSON.stringify(parsed.details || {}, null, 2)
+        });
+        setKeyValuePairs(parsed.details || {});
+        setInputMode('simple');
+        setEditorKey(prev => prev + 1);
+      } catch (error) {
+        // If JSON is invalid, switch anyway with empty values
+        setInputMode('simple');
+        setEditorKey(prev => prev + 1);
+      }
+    }
+    setErrors({});
+  };
+
+  const handleIssueAnother = () => {
+    setRequestState({ status: 'idle' });
+    setValues({ name: '', credentialType: '', details: '{}' });
+    setKeyValuePairs({});
+    setRawJsonInput('');
+    setErrors({});
+    setToastMessage(null);
+    setEditorKey(prev => prev + 1);
+  };
+
   return (
     <>
       <ErrorToast message={toastMessage} onClose={handleToastClose} />
@@ -249,13 +314,37 @@ const IssuancePage = () => {
         </p>
       </header>
 
-      <div className={`grid gap-6 ${issuedCredential ? 'lg:grid-cols-[2fr,3fr]' : 'lg:grid-cols-1'}`}>
+      {/* Show loading state */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-brand border-t-transparent"></div>
+            <p className="text-lg font-semibold text-slate-700">Issuing Credential...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Show form only when not loading and no credential issued */}
+      {!isLoading && !issuedCredential && (
+        <div className="grid gap-6 lg:grid-cols-1">
         <section className={`rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200 ${!issuedCredential ? 'mx-auto w-full max-w-3xl' : ''}`}>
           <form className="space-y-5" onSubmit={handleSubmit} noValidate>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="name">
-                Name
-              </label>
+            {/* Mode Toggle */}
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Credential Input</h2>
+              <ModeToggle
+                mode={inputMode}
+                onModeChange={handleInputModeChange}
+                disabled={isLoading}
+              />
+            </div>
+
+            {inputMode === 'simple' ? (
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700" htmlFor="name">
+                    Name
+                  </label>
               <input
                 id="name"
                 name="name"
@@ -325,6 +414,27 @@ const IssuancePage = () => {
               
               {errors.details ? <p className="text-sm text-red-600">{errors.details}</p> : null}
             </div>
+            </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-slate-700">
+                  Raw JSON Payload
+                </label>
+                <JsonEditor
+                  value={rawJsonInput}
+                  onChange={(value) => {
+                    setRawJsonInput(value);
+                    setErrors({});
+                    setToastMessage(null);
+                  }}
+                  placeholder='{\n  "name": "John Doe",\n  "credentialType": "Degree",\n  "details": {\n    "course": "Computer Science"\n  }\n}'
+                  disabled={isLoading}
+                  height="400px"
+                  showFormatButton={true}
+                />
+                {errors.details ? <p className="text-sm text-red-600">{errors.details}</p> : null}
+              </div>
+            )}
 
             <div className="flex flex-col gap-3">
               {formFeedback && (
@@ -360,11 +470,13 @@ const IssuancePage = () => {
             </div>
           </form>
         </section>
+        </div>
+      )}
 
-        {issuedCredential && (
-          <section className="flex h-full flex-col rounded-2xl border border-dashed border-brand/30 bg-white/80 p-6 shadow-inner backdrop-blur">
-            {issuedCredential ? (
-            <div className="flex h-full flex-col gap-6">
+      {/* Show results when credential is issued */}
+      {issuedCredential && (
+        <section className="mx-auto w-full max-w-4xl rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200">
+          <div className="flex flex-col gap-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-slate-900">Issued Credential</h2>
                 <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
@@ -454,11 +566,21 @@ const IssuancePage = () => {
                   Download JSON
                 </button>
               </div>
+
+              {/* Issue Another Button */}
+              <button
+                type="button"
+                onClick={handleIssueAnother}
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-blue-700 px-6 py-3 text-base font-semibold tracking-wide text-white shadow-lg shadow-brand/40 transition hover:from-brand-dark hover:to-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Issue Another Credential
+              </button>
             </div>
-          ) : null}
-          </section>
-        )}
-      </div>
+        </section>
+      )}
       </div>
     </>
   );

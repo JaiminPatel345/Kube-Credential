@@ -20,6 +20,47 @@ type ValidationState = {
 
 type InputMode = 'simple' | 'raw';
 
+type SimpleFormData = {
+  id: string;
+  name: string;
+  credentialType: string;
+  issuedBy: string;
+  issuedAt: string;
+  hash: string;
+  details: Record<string, string>;
+};
+
+type SimpleFormErrors = Partial<Record<keyof SimpleFormData, string>>;
+
+const SIMPLE_FIELD_LABELS: Record<keyof SimpleFormData, string> = {
+  id: 'Id',
+  name: 'Name',
+  credentialType: 'Credential Type',
+  issuedBy: 'Issued By',
+  issuedAt: 'Issued At',
+  hash: 'Hash',
+  details: 'Details',
+};
+
+const REQUIRED_SIMPLE_FIELDS: Array<keyof SimpleFormData> = [
+  'id',
+  'name',
+  'credentialType',
+  'issuedBy',
+  'issuedAt',
+  'hash',
+];
+
+const EMPTY_SIMPLE_FORM: SimpleFormData = {
+  id: '',
+  name: '',
+  credentialType: '',
+  issuedBy: '',
+  issuedAt: '',
+  hash: '',
+  details: {},
+};
+
 const EMPTY_EXAMPLE = `{
   "id": "",
   "name": "",
@@ -30,38 +71,36 @@ const EMPTY_EXAMPLE = `{
   "hash": ""
 }`;
 
-const isIssuedCredential = (data: unknown): data is IssuedCredential => {
-  if (!data || typeof data !== 'object') return false;
-  const obj = data as Record<string, unknown>;
-  return (
-    typeof obj.id === 'string' &&
-    typeof obj.name === 'string' &&
-    typeof obj.credentialType === 'string' &&
-    typeof obj.details === 'object' &&
-    obj.details !== null &&
-    typeof obj.issuedBy === 'string' &&
-    typeof obj.issuedAt === 'string' &&
-    typeof obj.hash === 'string'
-  );
-};
-
 const VerificationPage = () => {
   const [rawJson, setRawJson] = useState<string>('');
   const [validation, setValidation] = useState<ValidationState>({ message: null });
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<InputMode>('simple');
-  const [simpleFormData, setSimpleFormData] = useState({
+  const [simpleFormData, setSimpleFormData] = useState<SimpleFormData>({
+    id: '',
     name: '',
     credentialType: '',
-    details: {} as Record<string, string>,
+    issuedBy: '',
+    issuedAt: '',
+    hash: '',
+    details: {},
   });
+  const [simpleErrors, setSimpleErrors] = useState<SimpleFormErrors>({});
   const [editorKey, setEditorKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const isLoading = requestState.status === 'loading';
   const verificationResult = requestState.status === 'success' ? requestState.payload : null;
   const verifiedCredential = requestState.status === 'success' ? requestState.credential : null;
+  const hasSimpleInput =
+    simpleFormData.id.trim().length > 0 ||
+    simpleFormData.name.trim().length > 0 ||
+    simpleFormData.credentialType.trim().length > 0 ||
+    simpleFormData.issuedBy.trim().length > 0 ||
+    simpleFormData.issuedAt.trim().length > 0 ||
+    simpleFormData.hash.trim().length > 0 ||
+    Object.values(simpleFormData.details).some((value) => value.trim().length > 0);
 
   const parseJson = (value: string): ValidationState => {
     if (!value.trim()) {
@@ -69,11 +108,52 @@ const VerificationPage = () => {
     }
 
     try {
-      const parsed = JSON.parse(value);
-      if (!isIssuedCredential(parsed)) {
-        return { message: 'Credential JSON must include id, name, credentialType, details, issuedBy, issuedAt, and hash fields' };
+      const parsed = JSON.parse(value) as Record<string, unknown> | null;
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return { message: 'Credential JSON must be an object' };
       }
-      return { message: null, credential: parsed };
+
+      const missingFields = REQUIRED_SIMPLE_FIELDS.reduce<string[]>((acc, field) => {
+        const raw = parsed[field];
+        if (typeof raw !== 'string' || raw.trim().length === 0) {
+          acc.push(SIMPLE_FIELD_LABELS[field]);
+        }
+        return acc;
+      }, []);
+
+      if (missingFields.length > 0) {
+        return { message: `Missing required fields: ${missingFields.join(', ')}` };
+      }
+
+      const detailsValue = parsed.details;
+      if (!detailsValue || typeof detailsValue !== 'object' || Array.isArray(detailsValue)) {
+        return { message: 'Details must be a JSON object' };
+      }
+
+      const normalizedDetails: Record<string, unknown> = {};
+      Object.entries(detailsValue as Record<string, unknown>).forEach(([key, value]) => {
+        const trimmedKey = String(key).trim();
+        const normalizedValue = typeof value === 'string' ? value.trim() : value;
+        if (trimmedKey.length > 0 && (normalizedValue ?? '') !== '') {
+          normalizedDetails[trimmedKey] = normalizedValue;
+        }
+      });
+
+      if (Object.keys(normalizedDetails).length === 0) {
+        return { message: 'Details must include at least one entry' };
+      }
+
+      const credential: IssuedCredential = {
+        id: String(parsed.id).trim(),
+        name: String(parsed.name).trim(),
+        credentialType: String(parsed.credentialType).trim(),
+        details: normalizedDetails,
+        issuedBy: String(parsed.issuedBy).trim(),
+        issuedAt: String(parsed.issuedAt).trim(),
+        hash: String(parsed.hash).trim(),
+      };
+
+      return { message: null, credential };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Invalid JSON payload';
       return { message: `Invalid JSON: ${message}` };
@@ -84,6 +164,7 @@ const VerificationPage = () => {
     setRawJson(value);
     setValidation({ message: null });
     setToastMessage(null);
+    setSimpleErrors({});
     
     // Auto-validate on change
     if (value.trim()) {
@@ -94,61 +175,97 @@ const VerificationPage = () => {
     }
   };
 
+  const normalizeSimpleDetails = (details: Record<string, string>): Record<string, string> => {
+    const normalized: Record<string, string> = {};
+    Object.entries(details).forEach(([key, value]) => {
+      const trimmedKey = key.trim();
+      const trimmedValue = value.trim();
+      if (trimmedKey.length > 0 && trimmedValue.length > 0) {
+        normalized[trimmedKey] = trimmedValue;
+      }
+    });
+    return normalized;
+  };
+
   const handleModeChange = (newMode: InputMode) => {
     if (newMode === inputMode) return;
 
+    setSimpleErrors({});
+
     if (newMode === 'raw') {
-      // Convert simple form to JSON
-      const credential = {
-        id: '',
-        name: simpleFormData.name,
-        credentialType: simpleFormData.credentialType,
-        details: simpleFormData.details,
-        issuedBy: '',
-        issuedAt: '',
-        hash: '',
+      const normalizedDetails = normalizeSimpleDetails(simpleFormData.details);
+      const credential: IssuedCredential = {
+        id: simpleFormData.id.trim(),
+        name: simpleFormData.name.trim(),
+        credentialType: simpleFormData.credentialType.trim(),
+        details: normalizedDetails,
+        issuedBy: simpleFormData.issuedBy.trim(),
+        issuedAt: simpleFormData.issuedAt.trim(),
+        hash: simpleFormData.hash.trim(),
       };
       setRawJson(JSON.stringify(credential, null, 2));
+      setValidation({ message: null, credential });
       setInputMode('raw');
     } else {
-      // Convert JSON to simple form
       try {
-        const parsed = JSON.parse(rawJson);
-        if (parsed && typeof parsed === 'object') {
+        const parsed = JSON.parse(rawJson) as Partial<IssuedCredential> | null;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           const details: Record<string, string> = {};
           if (parsed.details && typeof parsed.details === 'object') {
             Object.entries(parsed.details).forEach(([key, value]) => {
-              details[key] = String(value);
+              details[String(key)] = String(value ?? '');
             });
           }
+
           setSimpleFormData({
-            name: parsed.name || '',
-            credentialType: parsed.credentialType || '',
-            details,
+            id: parsed.id ? String(parsed.id) : '',
+            name: parsed.name ? String(parsed.name) : '',
+            credentialType: parsed.credentialType ? String(parsed.credentialType) : '',
+            issuedBy: parsed.issuedBy ? String(parsed.issuedBy) : '',
+            issuedAt: parsed.issuedAt ? String(parsed.issuedAt) : '',
+            hash: parsed.hash ? String(parsed.hash) : '',
+            details: normalizeSimpleDetails(details),
           });
           setInputMode('simple');
-          setEditorKey(prev => prev + 1);
+          setEditorKey((prev) => prev + 1);
         }
       } catch (error) {
-        // If JSON is invalid, switch anyway with empty form
-        setSimpleFormData({ name: '', credentialType: '', details: {} });
+  setSimpleFormData(() => ({ ...EMPTY_SIMPLE_FORM }));
         setInputMode('simple');
-        setEditorKey(prev => prev + 1);
+        setEditorKey((prev) => prev + 1);
       }
     }
+
     setValidation({ message: null });
   };
 
-  const handleSimpleFormChange = (field: 'name' | 'credentialType') => (
-    event: ChangeEvent<HTMLInputElement>
-  ) => {
-    setSimpleFormData((prev) => ({ ...prev, [field]: event.target.value }));
+  const handleSimpleFormChange = (
+    field: 'id' | 'name' | 'credentialType' | 'issuedBy' | 'issuedAt' | 'hash'
+  ) => (event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setSimpleFormData((prev) => ({ ...prev, [field]: value }));
+    setSimpleErrors((prev) => {
+      if (!prev[field]) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
     setValidation({ message: null });
     setToastMessage(null);
   };
 
   const handleDetailsChange = (pairs: Record<string, string>) => {
     setSimpleFormData((prev) => ({ ...prev, details: pairs }));
+    setSimpleErrors((prev) => {
+      if (!prev.details) {
+        return prev;
+      }
+      const next = { ...prev };
+      delete next.details;
+      return next;
+    });
     setValidation({ message: null });
     setToastMessage(null);
   };
@@ -171,15 +288,20 @@ const VerificationPage = () => {
           const details: Record<string, string> = {};
           if (result.credential.details && typeof result.credential.details === 'object') {
             Object.entries(result.credential.details).forEach(([key, value]) => {
-              details[key] = String(value);
+              details[String(key)] = String(value ?? '');
             });
           }
           setSimpleFormData({
+            id: result.credential.id || '',
             name: result.credential.name || '',
             credentialType: result.credential.credentialType || '',
-            details,
+            issuedBy: result.credential.issuedBy || '',
+            issuedAt: result.credential.issuedAt || '',
+            hash: result.credential.hash || '',
+            details: normalizeSimpleDetails(details),
           });
-          setEditorKey(prev => prev + 1);
+          setSimpleErrors({});
+          setEditorKey((prev) => prev + 1);
         }
         
         setValidation({ message: null, credential: result.credential });
@@ -205,31 +327,37 @@ const VerificationPage = () => {
     let credential: IssuedCredential;
 
     if (inputMode === 'simple') {
-      // Build credential from simple form
-      if (!simpleFormData.name.trim() || !simpleFormData.credentialType.trim()) {
-        setValidation({ message: 'Name and Credential Type are required' });
-        setToastMessage('Name and Credential Type are required');
+      const normalizedDetails = normalizeSimpleDetails(simpleFormData.details);
+      const errors: SimpleFormErrors = {};
+
+      REQUIRED_SIMPLE_FIELDS.forEach((field) => {
+        const value = simpleFormData[field];
+        if (typeof value !== 'string' || value.trim().length === 0) {
+          errors[field] = `${SIMPLE_FIELD_LABELS[field]} is required`;
+        }
+      });
+
+      if (Object.keys(normalizedDetails).length === 0) {
+        errors.details = 'Details must include at least one entry';
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setSimpleErrors(errors);
+        const missing = Object.keys(errors).map((field) => SIMPLE_FIELD_LABELS[field as keyof SimpleFormData]);
+        const message = `Missing required fields: ${missing.join(', ')}`;
+        setValidation({ message });
+        setToastMessage(message);
         return;
       }
 
-      const hasValidDetails = Object.entries(simpleFormData.details).some(
-        ([key, value]) => key.trim() !== '' || value.trim() !== ''
-      );
-      if (!hasValidDetails) {
-        setValidation({ message: 'At least one detail field is required' });
-        setToastMessage('At least one detail field is required');
-        return;
-      }
-
-      // Create credential object (fields like id, hash may be empty for lookup)
       credential = {
-        id: '',
+        id: simpleFormData.id.trim(),
         name: simpleFormData.name.trim(),
         credentialType: simpleFormData.credentialType.trim(),
-        details: simpleFormData.details,
-        issuedBy: '',
-        issuedAt: '',
-        hash: '',
+        details: normalizedDetails,
+        issuedBy: simpleFormData.issuedBy.trim(),
+        issuedAt: simpleFormData.issuedAt.trim(),
+        hash: simpleFormData.hash.trim(),
       };
     } else {
       // Parse JSON mode
@@ -265,7 +393,8 @@ const VerificationPage = () => {
   const handleClear = () => {
     // Clear both raw JSON and simple form data
     setRawJson('');
-    setSimpleFormData({ name: '', credentialType: '', details: {} });
+    setSimpleFormData(() => ({ ...EMPTY_SIMPLE_FORM }));
+    setSimpleErrors({});
     setValidation({ message: null });
     setRequestState({ status: 'idle' });
     setToastMessage(null);
@@ -307,6 +436,16 @@ const VerificationPage = () => {
     );
   };
 
+  const handleVerifyAnother = () => {
+    setRequestState({ status: 'idle' });
+    setRawJson('');
+    setSimpleFormData(() => ({ ...EMPTY_SIMPLE_FORM }));
+    setSimpleErrors({});
+    setValidation({ message: null });
+    setToastMessage(null);
+    setEditorKey(prev => prev + 1);
+  };
+
   return (
     <>
       <ErrorToast message={toastMessage} onClose={handleToastClose} />
@@ -320,8 +459,20 @@ const VerificationPage = () => {
         </p>
       </header>
 
-  <div className={`grid gap-6 ${verificationResult || verifiedCredential ? 'lg:grid-cols-[2fr,3fr]' : 'lg:grid-cols-1'}`}>
-        <section className={`rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200 ${!(verificationResult || verifiedCredential) ? 'mx-auto w-full max-w-3xl' : ''}`}>
+      {/* Show loading state */}
+      {isLoading && (
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-4">
+            <div className="h-16 w-16 animate-spin rounded-full border-4 border-brand border-t-transparent"></div>
+            <p className="text-lg font-semibold text-slate-700">Verifying Credential...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Show form only when not loading and no result */}
+      {!isLoading && !verificationResult && !verifiedCredential && (
+        <div className="grid gap-6 lg:grid-cols-1">
+          <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200 mx-auto w-full max-w-3xl">
           <form className="space-y-5" onSubmit={handleSubmit} noValidate>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Credential Input</h2>
@@ -333,35 +484,133 @@ const VerificationPage = () => {
             </div>
 
             {inputMode === 'simple' ? (
-              <div className="space-y-4">
+              <div className="space-y-5">
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700" htmlFor="simple-name">
-                    Name
+                  <label className="block text-sm font-medium text-slate-700" htmlFor="simple-id">
+                    Credential ID
                   </label>
                   <input
-                    id="simple-name"
+                    id="simple-id"
                     type="text"
-                    placeholder="John Doe"
-                    value={simpleFormData.name}
-                    onChange={handleSimpleFormChange('name')}
+                    placeholder="Enter the credential ID"
+                    value={simpleFormData.id}
+                    onChange={handleSimpleFormChange('id')}
                     disabled={isLoading}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60"
+                    className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                      simpleErrors.id
+                        ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                        : 'border-slate-300 focus:border-brand focus:ring-brand/40'
+                    }`}
                   />
+                  {simpleErrors.id ? <p className="text-xs text-rose-600">{simpleErrors.id}</p> : null}
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700" htmlFor="simple-name">
+                      Name
+                    </label>
+                    <input
+                      id="simple-name"
+                      type="text"
+                      placeholder="John Doe"
+                      value={simpleFormData.name}
+                      onChange={handleSimpleFormChange('name')}
+                      disabled={isLoading}
+                      className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                        simpleErrors.name
+                          ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                          : 'border-slate-300 focus:border-brand focus:ring-brand/40'
+                      }`}
+                    />
+                    {simpleErrors.name ? <p className="text-xs text-rose-600">{simpleErrors.name}</p> : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700" htmlFor="simple-type">
+                      Credential Type
+                    </label>
+                    <input
+                      id="simple-type"
+                      type="text"
+                      placeholder="Administrator"
+                      value={simpleFormData.credentialType}
+                      onChange={handleSimpleFormChange('credentialType')}
+                      disabled={isLoading}
+                      className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                        simpleErrors.credentialType
+                          ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                          : 'border-slate-300 focus:border-brand focus:ring-brand/40'
+                      }`}
+                    />
+                    {simpleErrors.credentialType ? (
+                      <p className="text-xs text-rose-600">{simpleErrors.credentialType}</p>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700" htmlFor="simple-issued-by">
+                      Issued By
+                    </label>
+                    <input
+                      id="simple-issued-by"
+                      type="text"
+                      placeholder="Issuer name"
+                      value={simpleFormData.issuedBy}
+                      onChange={handleSimpleFormChange('issuedBy')}
+                      disabled={isLoading}
+                      className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                        simpleErrors.issuedBy
+                          ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                          : 'border-slate-300 focus:border-brand focus:ring-brand/40'
+                      }`}
+                    />
+                    {simpleErrors.issuedBy ? (
+                      <p className="text-xs text-rose-600">{simpleErrors.issuedBy}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-slate-700" htmlFor="simple-issued-at">
+                      Issued At
+                    </label>
+                    <input
+                      id="simple-issued-at"
+                      type="text"
+                      placeholder="2024-01-01T12:00:00Z"
+                      value={simpleFormData.issuedAt}
+                      onChange={handleSimpleFormChange('issuedAt')}
+                      disabled={isLoading}
+                      className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                        simpleErrors.issuedAt
+                          ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                          : 'border-slate-300 focus:border-brand focus:ring-brand/40'
+                      }`}
+                    />
+                    {simpleErrors.issuedAt ? <p className="text-xs text-rose-600">{simpleErrors.issuedAt}</p> : null}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-700" htmlFor="simple-type">
-                    Credential Type
+                  <label className="block text-sm font-medium text-slate-700" htmlFor="simple-hash">
+                    Hash
                   </label>
                   <input
-                    id="simple-type"
+                    id="simple-hash"
                     type="text"
-                    placeholder="Admin"
-                    value={simpleFormData.credentialType}
-                    onChange={handleSimpleFormChange('credentialType')}
+                    placeholder="64-character hash"
+                    value={simpleFormData.hash}
+                    onChange={handleSimpleFormChange('hash')}
                     disabled={isLoading}
-                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60"
+                    className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                      simpleErrors.hash
+                        ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
+                        : 'border-slate-300 focus:border-brand focus:ring-brand/40'
+                    }`}
                   />
+                  {simpleErrors.hash ? <p className="text-xs text-rose-600">{simpleErrors.hash}</p> : null}
                 </div>
 
                 <div className="space-y-2">
@@ -372,6 +621,7 @@ const VerificationPage = () => {
                     onChange={handleDetailsChange}
                     disabled={isLoading}
                   />
+                  {simpleErrors.details ? <p className="text-xs text-rose-600">{simpleErrors.details}</p> : null}
                 </div>
 
                 {validation.message ? <p className="text-sm text-red-600">{validation.message}</p> : null}
@@ -409,7 +659,7 @@ const VerificationPage = () => {
                 <button
                   type="button"
                   onClick={handleClear}
-                  disabled={isLoading || (inputMode === 'raw' ? rawJson.length === 0 : !simpleFormData.name && !simpleFormData.credentialType)}
+                  disabled={isLoading || (inputMode === 'raw' ? rawJson.length === 0 : !hasSimpleInput)}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -453,86 +703,91 @@ const VerificationPage = () => {
                 {requestState.message}
               </div>
             ) : null}
-
-            {requestState.status === 'loading' ? (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
-                Verifying credential…
-              </div>
-            ) : null}
           </form>
         </section>
+        </div>
+      )}
 
-        {(verificationResult || verifiedCredential) && (
-          <section className="flex h-full flex-col gap-5 rounded-2xl border border-dashed border-brand/30 bg-white/80 p-6 shadow-inner backdrop-blur">
+      {/* Show results when verification is done */}
+      {(verificationResult || verifiedCredential) && (
+        <section className="mx-auto w-full max-w-4xl rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200">
+          <div className="flex flex-col gap-5">
             {renderStatusBadge()}
-
-            {verificationResult && verifiedCredential ? (
-            <div className="flex flex-col gap-5">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
-                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued By</dt>
-                  <dd className="text-sm font-semibold text-slate-900">
-                    {verificationResult.issuedBy ?? 'Unknown'}
-                  </dd>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
-                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued At</dt>
-                  <dd className="text-sm font-semibold text-slate-900">
-                    {verificationResult.issuedAt ? new Date(verificationResult.issuedAt).toLocaleString() : 'Unknown'}
-                  </dd>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
-                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Verified By</dt>
-                  <dd className="text-sm font-semibold text-slate-900">
-                    {verificationResult.verifiedBy ?? 'Unknown'}
-                  </dd>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
-                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Credential Type</dt>
-                  <dd className="text-sm font-semibold text-slate-900">{verifiedCredential.credentialType}</dd>
-                </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued By</dt>
+                <dd className="text-sm font-semibold text-slate-900">
+                  {verificationResult?.issuedBy ?? 'Unknown'}
+                </dd>
               </div>
-
-              <div className="space-y-3">
-                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Credential Details
-                  </h3>
-                  {verifiedCredential.details && typeof verifiedCredential.details === 'object' && Object.keys(verifiedCredential.details).length > 0 ? (
-                    <ul className="space-y-2">
-                      {Object.entries(verifiedCredential.details).map(([key, value]) => (
-                        <li key={key} className="flex items-start gap-2 text-sm">
-                          <span className="text-slate-400">•</span>
-                          <span className="font-medium text-slate-700">{key}:</span>
-                          <span className="text-slate-900">{String(value)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-sm text-slate-500">No additional details</p>
-                  )}
-                </div>
-
-                <div className="rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
-                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                    </svg>
-                    Full Credential JSON
-                  </h3>
-                  <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
-                    <code>{JSON.stringify(verifiedCredential, null, 2)}</code>
-                  </pre>
-                </div>
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued At</dt>
+                <dd className="text-sm font-semibold text-slate-900">
+                  {verificationResult?.issuedAt ? new Date(verificationResult.issuedAt).toLocaleString() : 'Unknown'}
+                </dd>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Verified By</dt>
+                <dd className="text-sm font-semibold text-slate-900">
+                  {verificationResult?.verifiedBy ?? 'Unknown'}
+                </dd>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Credential Type</dt>
+                <dd className="text-sm font-semibold text-slate-900">{verifiedCredential?.credentialType ?? 'Unknown'}</dd>
               </div>
             </div>
-          ) : null}
-          </section>
-        )}
-      </div>
+
+            <div className="space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Credential Details
+                </h3>
+                {verifiedCredential?.details && typeof verifiedCredential.details === 'object' && Object.keys(verifiedCredential.details).length > 0 ? (
+                  <ul className="space-y-2">
+                    {Object.entries(verifiedCredential.details).map(([key, value]) => (
+                      <li key={key} className="flex items-start gap-2 text-sm">
+                        <span className="text-slate-400">•</span>
+                        <span className="font-medium text-slate-700">{key}:</span>
+                        <span className="text-slate-900">{String(value)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500">No additional details</p>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
+                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  Full Credential JSON
+                </h3>
+                <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
+                  <code>{JSON.stringify(verifiedCredential, null, 2)}</code>
+                </pre>
+              </div>
+            </div>
+
+            {/* Verify Another Button */}
+            <button
+              type="button"
+              onClick={handleVerifyAnother}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-3 text-base font-semibold tracking-wide text-white shadow-lg shadow-emerald-600/40 transition hover:from-emerald-700 hover:to-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Verify Another Credential
+            </button>
+          </div>
+        </section>
+      )}
       </div>
     </>
   );
