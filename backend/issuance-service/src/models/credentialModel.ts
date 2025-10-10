@@ -1,4 +1,5 @@
 import { getDatabase } from '../utils/database';
+
 export interface CredentialEntity {
   id: string;
   name: string;
@@ -17,19 +18,19 @@ const mapRow = (row: CredentialRow): CredentialEntity => ({
 });
 
 export const credentialModel = {
-  async findById(id: string): Promise<CredentialEntity | null> {
-    const db = await getDatabase();
-    const row = await db.get<CredentialRow>(
-      'SELECT id, name, credentialType, details, issuedBy, issuedAt, hash FROM credentials WHERE id = ?',
-      id
-    );
+  findById(id: string): CredentialEntity | null {
+    const db = getDatabase();
+    const row = db
+      .prepare('SELECT id, name, credentialType, details, issuedBy, issuedAt, hash FROM credentials WHERE id = ?')
+      .get(id) as CredentialRow | undefined;
     return row ? mapRow(row) : null;
   },
 
-  async create(entity: CredentialEntity): Promise<CredentialEntity> {
-    const db = await getDatabase();
-    await db.run(
-      'INSERT INTO credentials (id, name, credentialType, details, issuedBy, issuedAt, hash) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  create(entity: CredentialEntity): CredentialEntity {
+    const db = getDatabase();
+    db.prepare(
+      'INSERT INTO credentials (id, name, credentialType, details, issuedBy, issuedAt, hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
       entity.id,
       entity.name,
       entity.credentialType,

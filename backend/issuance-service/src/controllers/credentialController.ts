@@ -17,12 +17,12 @@ const buildCredentialPayload = (
   issuedAt: new Date().toISOString()
 });
 
-export const issueCredential: RequestHandler = async (req, res, next) => {
+export const issueCredential: RequestHandler = (req, res, next) => {
   try {
     const input = IssueCredentialSchema.parse(req.body);
 
     const credentialId = generateDeterministicId(input);
-    const existing = await credentialModel.findById(credentialId);
+    const existing = credentialModel.findById(credentialId);
 
     if (existing) {
       throw new AppError('Credential already issued', 409);
@@ -31,7 +31,7 @@ export const issueCredential: RequestHandler = async (req, res, next) => {
     const credentialWithoutHash = buildCredentialPayload(input, credentialId);
     const hash = generateIntegrityHash(credentialWithoutHash);
 
-    const credential = await credentialModel.create({
+    const credential = credentialModel.create({
       ...credentialWithoutHash,
       hash
     });

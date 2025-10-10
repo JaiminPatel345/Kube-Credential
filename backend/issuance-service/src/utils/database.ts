@@ -1,21 +1,19 @@
-import sqlite3 from 'sqlite3';
-import { open, type Database } from 'sqlite';
+import DatabaseConstructor from 'better-sqlite3';
 import { serviceConfig } from '../config';
 
-sqlite3.verbose();
+type BetterSqliteDatabase = DatabaseConstructor.Database;
 
-let databasePromise: Promise<Database<sqlite3.Database, sqlite3.Statement>> | null = null;
+let db: BetterSqliteDatabase | null = null;
 
-const createDatabase = async () => {
-  const db = await open({
-    filename: serviceConfig.databasePath,
-    driver: sqlite3.Database
+const createDatabase = (): BetterSqliteDatabase => {
+  const instance = new DatabaseConstructor(serviceConfig.databasePath, {
+    fileMustExist: false
   });
 
-  await db.exec('PRAGMA foreign_keys = ON;');
-  await db.exec('PRAGMA journal_mode = WAL;');
+  instance.pragma('foreign_keys = ON');
+  instance.pragma('journal_mode = WAL');
 
-  await db.exec(`
+  instance.exec(`
     CREATE TABLE IF NOT EXISTS credentials (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -27,29 +25,28 @@ const createDatabase = async () => {
     );
   `);
 
-  await db.exec(`
+  instance.exec(`
     CREATE INDEX IF NOT EXISTS idx_credentials_hash
     ON credentials (hash);
   `);
 
+  return instance;
+};
+
+export const getDatabase = (): BetterSqliteDatabase => {
+  if (!db) {
+    db = createDatabase();
+  }
   return db;
 };
 
-export const getDatabase = async () => {
-  if (!databasePromise) {
-    databasePromise = createDatabase();
-  }
-  return databasePromise;
-};
-
-export const closeDatabase = async () => {
-  if (databasePromise) {
-    const db = await databasePromise;
-    await db.close();
-    databasePromise = null;
+export const closeDatabase = async (): Promise<void> => {
+  if (db) {
+    db.close();
+    db = null;
   }
 };
 
-export const initializeDatabase = async () => {
-  await getDatabase();
+export const initializeDatabase = async (): Promise<void> => {
+  getDatabase();
 };

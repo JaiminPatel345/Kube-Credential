@@ -1,10 +1,13 @@
 import request from 'supertest';
 import type { Express } from 'express';
+import type DatabaseConstructor from 'better-sqlite3';
+
+type BetterSqliteDatabase = DatabaseConstructor.Database;
 
 let app: Express;
 let initializeDatabase: () => Promise<void>;
 let closeDatabase: () => Promise<void>;
-let getDatabase: () => Promise<{ exec: (sql: string) => Promise<unknown> }>;
+let getDatabase: () => BetterSqliteDatabase;
 
 beforeAll(async () => {
   process.env.NODE_ENV = 'test';
@@ -29,9 +32,9 @@ afterAll(async () => {
   await closeDatabase();
 });
 
-beforeEach(async () => {
-  const db = await getDatabase();
-  await db.exec('DELETE FROM credentials');
+beforeEach(() => {
+  const db = getDatabase();
+  db.prepare('DELETE FROM credentials').run();
 });
 
 describe('POST /api/issue', () => {
