@@ -8,6 +8,8 @@ import type { CredentialEntity } from '../src/models/credentialModel';
 
 type BetterSqliteDatabase = DatabaseConstructor.Database;
 
+const SYNC_SECRET = 'test-sync-secret';
+
 let app: Express;
 let initializeDatabase: () => Promise<void>;
 let closeDatabase: () => Promise<void>;
@@ -38,6 +40,7 @@ beforeAll(async () => {
   process.env.DATABASE_PATH = ':memory:';
   process.env.HOSTNAME = 'verification-test';
   process.env.PORT = '0';
+  process.env.SYNC_SECRET = SYNC_SECRET;
 
   jest.resetModules();
 
@@ -135,7 +138,11 @@ describe('POST /internal/sync', () => {
   it('persists credential when hash matches', async () => {
     const credential = buildCredential();
 
-    const response = await request(app).post('/internal/sync').send(credential).expect(200);
+    const response = await request(app)
+      .post('/internal/sync')
+      .set('x-internal-sync-key', SYNC_SECRET)
+      .send(credential)
+      .expect(200);
 
     expect(response.body).toEqual({
       success: true,
@@ -161,7 +168,11 @@ describe('POST /internal/sync', () => {
     const credential = buildCredential();
     const invalidPayload = { ...credential, hash: '0'.repeat(64) };
 
-    const response = await request(app).post('/internal/sync').send(invalidPayload).expect(400);
+    const response = await request(app)
+      .post('/internal/sync')
+      .set('x-internal-sync-key', SYNC_SECRET)
+      .send(invalidPayload)
+      .expect(400);
 
     expect(response.body).toEqual({
       success: false,

@@ -31,6 +31,7 @@ The service listens on port `3002` by default. Health check is available at `GET
 | `DATABASE_PATH`        | `data/verification.db`      | SQLite database location (supports `:memory:`)                          |
 | `HOSTNAME`             | `verification-service`      | Worker identifier used in responses                                     |
 | `SYNC_SECRET`          | _(unset)_                   | Optional shared secret required on `/internal/sync` requests            |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173`     | Comma-separated list of allowed browser origins (`*` permits all)       |
 | `ISSUANCE_SERVICE_URL` | `http://localhost:3001`     | Base URL used for catch-up sync when downloading credentials on startup |
 
 ## Scripts

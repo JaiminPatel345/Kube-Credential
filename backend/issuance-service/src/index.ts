@@ -1,3 +1,4 @@
+import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import issueRoutes from './routes/issueRoutes';
@@ -9,6 +10,17 @@ import { initializeDatabase } from './utils/database';
 export const createApp = () => {
   const app = express();
 
+  const origin = serviceConfig.corsAllowedOrigins.includes('*')
+    ? true
+    : serviceConfig.corsAllowedOrigins;
+
+  app.use(
+    cors({
+      origin,
+      credentials: true,
+      optionsSuccessStatus: 204
+    })
+  );
   app.use(express.json({ limit: '1mb' }));
 
   app.get('/health', (_req: Request, res: Response) => {

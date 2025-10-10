@@ -61,6 +61,7 @@ Create a `.env` file in `backend/issuance-service/` (see `.env.example` for refe
 | Variable         | Default           | Purpose                                        |
 |------------------|-------------------|------------------------------------------------|
 | `PORT`           | `3001`            | HTTP port for the Express server                |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed browser origins (`*` permits all) |
 | `DATABASE_PATH`  | `data/credentials.db` | SQLite database location (supports `:memory:`) |
 | `HOSTNAME`       | system hostname   | Worker identifier for responses                 |
 | `VERIFICATION_SERVICE_URL` | `http://localhost:3002` | Base URL for verification service sync calls |
@@ -112,6 +113,7 @@ Refer to [`backend/verification-service/README.md`](backend/verification-service
 | `DATABASE_PATH`        | `data/verification.db` | SQLite database location                                                |
 | `HOSTNAME`             | `verification-service` | Worker identifier reported in responses                                 |
 | `SYNC_SECRET`          | _(unset)_              | Optional shared secret required on `/internal/sync` calls               |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed browser origins (`*` permits all)       |
 | `ISSUANCE_SERVICE_URL` | `http://localhost:3001` | Base URL used for the startup catch-up sync with the issuance service |
 
 ### Run Tests

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { parseAxiosError, verifyCredential } from '../services/api';
 import type { IssuedCredential, VerifyCredentialSuccessResponse } from '../types/credential';
+import ErrorToast from '../components/ErrorToast';
 
 type RequestState =
   | { status: 'idle' }
@@ -43,6 +44,7 @@ const VerificationPage = () => {
   const [rawJson, setRawJson] = useState<string>('');
   const [validation, setValidation] = useState<ValidationState>({ message: null });
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const isLoading = requestState.status === 'loading';
@@ -70,6 +72,7 @@ const VerificationPage = () => {
     const { value } = event.target;
     setRawJson(value);
     setValidation({ message: null });
+    setToastMessage(null);
   };
 
   const handleTextareaBlur = () => {
@@ -77,8 +80,10 @@ const VerificationPage = () => {
     if (result.credential) {
       setRawJson(JSON.stringify(result.credential, null, 2));
       setValidation({ message: null, credential: result.credential });
+      setToastMessage(null);
     } else if (result.message) {
       setValidation(result);
+      setToastMessage(result.message);
     }
   };
 
@@ -95,13 +100,16 @@ const VerificationPage = () => {
         setRawJson(JSON.stringify(result.credential, null, 2));
         setValidation({ message: null, credential: result.credential });
         setRequestState({ status: 'idle' });
+        setToastMessage(null);
       } else if (result.message) {
         setRawJson(text);
         setValidation(result);
+        setToastMessage(result.message);
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to read file';
       setValidation({ message });
+      setToastMessage(message);
     } finally {
       event.target.value = '';
     }
@@ -114,18 +122,22 @@ const VerificationPage = () => {
     if (!result.credential) {
       setValidation(result);
       setRequestState({ status: 'idle' });
+      setToastMessage(result.message ?? 'Invalid credential JSON');
       return;
     }
 
     setValidation({ message: null, credential: result.credential });
     setRequestState({ status: 'loading' });
+    setToastMessage(null);
 
     try {
       const response = await verifyCredential(result.credential);
       setRequestState({ status: 'success', payload: response, credential: result.credential });
+      setToastMessage(null);
     } catch (error) {
       const parsed = parseAxiosError(error);
       setRequestState({ status: 'error', message: parsed.message });
+      setToastMessage(parsed.message);
     }
   };
 
@@ -137,7 +149,10 @@ const VerificationPage = () => {
     setRawJson('');
     setValidation({ message: null });
     setRequestState({ status: 'idle' });
+    setToastMessage(null);
   };
+
+  const handleToastClose = () => setToastMessage(null);
 
   const renderStatusBadge = () => {
     if (!verificationResult) {
@@ -172,7 +187,9 @@ const VerificationPage = () => {
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-6 lg:px-8">
+    <>
+      <ErrorToast message={toastMessage} onClose={handleToastClose} />
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-6 lg:px-8">
       <header className="flex flex-col gap-2 text-center md:text-left">
         <p className="text-sm font-semibold uppercase tracking-widest text-brand-light">Kube Credential</p>
         <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">Verify an Issued Credential</h1>
@@ -182,7 +199,7 @@ const VerificationPage = () => {
         </p>
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[2fr,3fr]">
+  <div className="grid gap-8 lg:grid-cols-[2fr,3fr]">
         <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200">
           <form className="space-y-6" onSubmit={handleSubmit} noValidate>
             <div className="space-y-2">
@@ -314,7 +331,8 @@ const VerificationPage = () => {
           )}
         </section>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

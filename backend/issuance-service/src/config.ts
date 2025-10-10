@@ -7,6 +7,7 @@ dotenv.config();
 const DEFAULT_PORT = 3001;
 const DEFAULT_DB_RELATIVE = 'data/credentials.db';
 const DEFAULT_VERIFICATION_SERVICE_URL = 'http://localhost:3002';
+const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173'];
 
 const parsePort = (value: string | undefined): number => {
   if (!value) {
@@ -41,6 +42,43 @@ const resolveDatabasePath = (value: string | undefined): string => {
 };
 
 const workerId = process.env.HOSTNAME?.trim() || 'unknown';
+const parseCorsOrigins = (value: string | undefined): string[] => {
+  const raw = value?.trim();
+
+  if (!raw) {
+    return DEFAULT_ALLOWED_ORIGINS;
+  }
+
+  const origins = raw
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+
+  if (origins.length === 0) {
+    return DEFAULT_ALLOWED_ORIGINS;
+  }
+
+  if (origins.includes('*')) {
+    return ['*'];
+  }
+
+  const validated = origins
+    .map((origin) => {
+      try {
+        return new URL(origin).origin;
+      } catch (_error) {
+        return null;
+      }
+    })
+    .filter((origin): origin is string => origin !== null);
+
+  if (validated.length === 0) {
+    return DEFAULT_ALLOWED_ORIGINS;
+  }
+
+  return Array.from(new Set(validated));
+};
+
 const verificationServiceUrl = (() => {
   const raw = process.env.VERIFICATION_SERVICE_URL?.trim();
 
@@ -56,6 +94,7 @@ const verificationServiceUrl = (() => {
 })();
 
 const syncSecret = process.env.SYNC_SECRET?.trim() || null;
+const corsAllowedOrigins = parseCorsOrigins(process.env.CORS_ALLOWED_ORIGINS);
 
 export const serviceConfig = {
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -63,7 +102,8 @@ export const serviceConfig = {
   databasePath: resolveDatabasePath(process.env.DATABASE_PATH),
   workerId,
   verificationServiceUrl,
-  syncSecret
+  syncSecret,
+  corsAllowedOrigins
 };
 
 export const getWorkerLabel = (): string => {

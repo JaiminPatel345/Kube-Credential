@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { issueCredential, parseAxiosError } from '../services/api';
 import type { IssuedCredential } from '../types/credential';
+import ErrorToast from '../components/ErrorToast';
 
 type FormValues = {
   name: string;
@@ -70,6 +71,7 @@ const IssuancePage = () => {
   const [values, setValues] = useState<FormValues>(EMPTY_FORM);
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const isLoading = requestState.status === 'loading';
   const issuedCredential = requestState.status === 'success' ? requestState.credential : null;
@@ -77,6 +79,7 @@ const IssuancePage = () => {
   const handleChange = (field: keyof FormValues) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setValues((prev) => ({ ...prev, [field]: event.target.value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
+    setToastMessage(null);
   };
 
   const validate = (formValues: FormValues) => {
@@ -114,6 +117,7 @@ const IssuancePage = () => {
       return;
     }
 
+    setToastMessage(null);
     setRequestState({ status: 'loading' });
 
     try {
@@ -124,9 +128,11 @@ const IssuancePage = () => {
       });
 
       setRequestState({ status: 'success', credential: response.credential });
+      setToastMessage(null);
     } catch (error) {
       const parsed = parseAxiosError(error);
       setRequestState({ status: 'error', message: parsed.message });
+      setToastMessage(parsed.message);
     }
   };
 
@@ -135,11 +141,15 @@ const IssuancePage = () => {
     try {
       await navigator.clipboard.writeText(createCredentialJson(issuedCredential));
       setRequestState({ status: 'success', credential: issuedCredential });
+      setToastMessage(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to copy to clipboard';
       setRequestState({ status: 'error', message });
+      setToastMessage(message);
     }
   };
+
+  const handleToastClose = () => setToastMessage(null);
 
   const formFeedback = useMemo(() => {
     if (requestState.status === 'loading') {
@@ -155,7 +165,9 @@ const IssuancePage = () => {
   }, [requestState]);
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-6 lg:px-8">
+    <>
+      <ErrorToast message={toastMessage} onClose={handleToastClose} />
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-6 lg:px-8">
       <header className="flex flex-col gap-2 text-center md:text-left">
         <p className="text-sm font-semibold uppercase tracking-widest text-brand-light">Kube Credential</p>
         <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">Issue a New Credential</h1>
@@ -321,7 +333,8 @@ const IssuancePage = () => {
           )}
         </section>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 
