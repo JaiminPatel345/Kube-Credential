@@ -4,6 +4,8 @@ import { parseAxiosError, verifyCredential } from '../services/api';
 import type { IssuedCredential, VerifyCredentialSuccessResponse } from '../types/credential';
 import ErrorToast from '../components/ErrorToast';
 import JsonEditor from '../components/JsonEditor';
+import KeyValueEditor from '../components/KeyValueEditor';
+import ModeToggle from '../components/ModeToggle';
 
 type RequestState =
   | { status: 'idle' }
@@ -15,6 +17,8 @@ type ValidationState = {
   message: string | null;
   credential?: IssuedCredential;
 };
+
+type InputMode = 'simple' | 'raw';
 
 const EMPTY_EXAMPLE = `{
   "id": "",
@@ -46,6 +50,13 @@ const VerificationPage = () => {
   const [validation, setValidation] = useState<ValidationState>({ message: null });
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [inputMode, setInputMode] = useState<InputMode>('simple');
+  const [simpleFormData, setSimpleFormData] = useState({
+    name: '',
+    credentialType: '',
+    details: {} as Record<string, string>,
+  });
+  const [editorKey, setEditorKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const isLoading = requestState.status === 'loading';
@@ -83,6 +94,65 @@ const VerificationPage = () => {
     }
   };
 
+  const handleModeChange = (newMode: InputMode) => {
+    if (newMode === inputMode) return;
+
+    if (newMode === 'raw') {
+      // Convert simple form to JSON
+      const credential = {
+        id: '',
+        name: simpleFormData.name,
+        credentialType: simpleFormData.credentialType,
+        details: simpleFormData.details,
+        issuedBy: '',
+        issuedAt: '',
+        hash: '',
+      };
+      setRawJson(JSON.stringify(credential, null, 2));
+      setInputMode('raw');
+    } else {
+      // Convert JSON to simple form
+      try {
+        const parsed = JSON.parse(rawJson);
+        if (parsed && typeof parsed === 'object') {
+          const details: Record<string, string> = {};
+          if (parsed.details && typeof parsed.details === 'object') {
+            Object.entries(parsed.details).forEach(([key, value]) => {
+              details[key] = String(value);
+            });
+          }
+          setSimpleFormData({
+            name: parsed.name || '',
+            credentialType: parsed.credentialType || '',
+            details,
+          });
+          setInputMode('simple');
+          setEditorKey(prev => prev + 1);
+        }
+      } catch (error) {
+        // If JSON is invalid, switch anyway with empty form
+        setSimpleFormData({ name: '', credentialType: '', details: {} });
+        setInputMode('simple');
+        setEditorKey(prev => prev + 1);
+      }
+    }
+    setValidation({ message: null });
+  };
+
+  const handleSimpleFormChange = (field: 'name' | 'credentialType') => (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    setSimpleFormData((prev) => ({ ...prev, [field]: event.target.value }));
+    setValidation({ message: null });
+    setToastMessage(null);
+  };
+
+  const handleDetailsChange = (pairs: Record<string, string>) => {
+    setSimpleFormData((prev) => ({ ...prev, details: pairs }));
+    setValidation({ message: null });
+    setToastMessage(null);
+  };
+
   const handleFileParse = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -93,7 +163,25 @@ const VerificationPage = () => {
       const text = await file.text();
       const result = parseJson(text);
       if (result.credential) {
+        // Update raw JSON
         setRawJson(JSON.stringify(result.credential, null, 2));
+        
+        // If in simple mode, also update the simple form data
+        if (inputMode === 'simple') {
+          const details: Record<string, string> = {};
+          if (result.credential.details && typeof result.credential.details === 'object') {
+            Object.entries(result.credential.details).forEach(([key, value]) => {
+              details[key] = String(value);
+            });
+          }
+          setSimpleFormData({
+            name: result.credential.name || '',
+            credentialType: result.credential.credentialType || '',
+            details,
+          });
+          setEditorKey(prev => prev + 1);
+        }
+        
         setValidation({ message: null, credential: result.credential });
         setRequestState({ status: 'idle' });
         setToastMessage(null);
@@ -114,21 +202,54 @@ const VerificationPage = () => {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const result = parseJson(rawJson);
-    if (!result.credential) {
-      setValidation(result);
-      setRequestState({ status: 'idle' });
-      setToastMessage(result.message ?? 'Invalid credential JSON');
-      return;
+    let credential: IssuedCredential;
+
+    if (inputMode === 'simple') {
+      // Build credential from simple form
+      if (!simpleFormData.name.trim() || !simpleFormData.credentialType.trim()) {
+        setValidation({ message: 'Name and Credential Type are required' });
+        setToastMessage('Name and Credential Type are required');
+        return;
+      }
+
+      const hasValidDetails = Object.entries(simpleFormData.details).some(
+        ([key, value]) => key.trim() !== '' || value.trim() !== ''
+      );
+      if (!hasValidDetails) {
+        setValidation({ message: 'At least one detail field is required' });
+        setToastMessage('At least one detail field is required');
+        return;
+      }
+
+      // Create credential object (fields like id, hash may be empty for lookup)
+      credential = {
+        id: '',
+        name: simpleFormData.name.trim(),
+        credentialType: simpleFormData.credentialType.trim(),
+        details: simpleFormData.details,
+        issuedBy: '',
+        issuedAt: '',
+        hash: '',
+      };
+    } else {
+      // Parse JSON mode
+      const result = parseJson(rawJson);
+      if (!result.credential) {
+        setValidation(result);
+        setRequestState({ status: 'idle' });
+        setToastMessage(result.message ?? 'Invalid credential JSON');
+        return;
+      }
+      credential = result.credential;
     }
 
-    setValidation({ message: null, credential: result.credential });
+    setValidation({ message: null, credential });
     setRequestState({ status: 'loading' });
     setToastMessage(null);
 
     try {
-      const response = await verifyCredential(result.credential);
-      setRequestState({ status: 'success', payload: response, credential: result.credential });
+      const response = await verifyCredential(credential);
+      setRequestState({ status: 'success', payload: response, credential });
       setToastMessage(null);
     } catch (error) {
       const parsed = parseAxiosError(error);
@@ -142,10 +263,14 @@ const VerificationPage = () => {
   };
 
   const handleClear = () => {
+    // Clear both raw JSON and simple form data
     setRawJson('');
+    setSimpleFormData({ name: '', credentialType: '', details: {} });
     setValidation({ message: null });
     setRequestState({ status: 'idle' });
     setToastMessage(null);
+    // Force remount of KeyValueEditor to clear it
+    setEditorKey(prev => prev + 1);
   };
 
   const handleToastClose = () => setToastMessage(null);
@@ -185,7 +310,7 @@ const VerificationPage = () => {
   return (
     <>
       <ErrorToast message={toastMessage} onClose={handleToastClose} />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 md:px-6 lg:px-8">
       <header className="flex flex-col gap-2 text-center md:text-left">
         <p className="text-sm font-semibold uppercase tracking-widest text-brand-light">Kube Credential</p>
         <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">Verify an Issued Credential</h1>
@@ -195,23 +320,78 @@ const VerificationPage = () => {
         </p>
       </header>
 
-  <div className="grid gap-8 lg:grid-cols-[2fr,3fr]">
-        <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200">
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="credential-json">
-                Credential JSON
-              </label>
-              <JsonEditor
-                value={rawJson}
-                onChange={handleJsonChange}
-                placeholder={EMPTY_EXAMPLE}
+  <div className={`grid gap-6 ${verificationResult || verifiedCredential ? 'lg:grid-cols-[2fr,3fr]' : 'lg:grid-cols-1'}`}>
+        <section className={`rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200 ${!(verificationResult || verifiedCredential) ? 'mx-auto w-full max-w-3xl' : ''}`}>
+          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">Credential Input</h2>
+              <ModeToggle
+                mode={inputMode}
+                onModeChange={handleModeChange}
                 disabled={isLoading}
-                height="400px"
-                showFormatButton={true}
               />
-              {validation.message ? <p className="text-sm text-red-600">{validation.message}</p> : null}
             </div>
+
+            {inputMode === 'simple' ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700" htmlFor="simple-name">
+                    Name
+                  </label>
+                  <input
+                    id="simple-name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={simpleFormData.name}
+                    onChange={handleSimpleFormChange('name')}
+                    disabled={isLoading}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700" htmlFor="simple-type">
+                    Credential Type
+                  </label>
+                  <input
+                    id="simple-type"
+                    type="text"
+                    placeholder="Admin"
+                    value={simpleFormData.credentialType}
+                    onChange={handleSimpleFormChange('credentialType')}
+                    disabled={isLoading}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-slate-700">Details</label>
+                  <KeyValueEditor
+                    key={`verification-simple-form-${editorKey}`}
+                    initialPairs={simpleFormData.details}
+                    onChange={handleDetailsChange}
+                    disabled={isLoading}
+                  />
+                </div>
+
+                {validation.message ? <p className="text-sm text-red-600">{validation.message}</p> : null}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-slate-700" htmlFor="credential-json">
+                  Credential JSON
+                </label>
+                <JsonEditor
+                  value={rawJson}
+                  onChange={handleJsonChange}
+                  placeholder={EMPTY_EXAMPLE}
+                  disabled={isLoading}
+                  height="400px"
+                  showFormatButton={true}
+                />
+                {validation.message ? <p className="text-sm text-red-600">{validation.message}</p> : null}
+              </div>
+            )}
 
             <div className="flex flex-col gap-3">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -229,7 +409,7 @@ const VerificationPage = () => {
                 <button
                   type="button"
                   onClick={handleClear}
-                  disabled={isLoading || rawJson.length === 0}
+                  disabled={isLoading || (inputMode === 'raw' ? rawJson.length === 0 : !simpleFormData.name && !simpleFormData.credentialType)}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -282,10 +462,11 @@ const VerificationPage = () => {
           </form>
         </section>
 
-        <section className="flex h-full flex-col gap-5 rounded-2xl border border-dashed border-brand/30 bg-white/80 p-6 shadow-inner backdrop-blur">
-          {renderStatusBadge()}
+        {(verificationResult || verifiedCredential) && (
+          <section className="flex h-full flex-col gap-5 rounded-2xl border border-dashed border-brand/30 bg-white/80 p-6 shadow-inner backdrop-blur">
+            {renderStatusBadge()}
 
-          {verificationResult && verifiedCredential ? (
+            {verificationResult && verifiedCredential ? (
             <div className="flex flex-col gap-5">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
@@ -312,32 +493,45 @@ const VerificationPage = () => {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
-                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                  </svg>
-                  Credential Payload
-                </h3>
-                <pre className="max-h-80 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
-                  <code>{JSON.stringify(verifiedCredential, null, 2)}</code>
-                </pre>
+              <div className="space-y-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Credential Details
+                  </h3>
+                  {verifiedCredential.details && typeof verifiedCredential.details === 'object' && Object.keys(verifiedCredential.details).length > 0 ? (
+                    <ul className="space-y-2">
+                      {Object.entries(verifiedCredential.details).map(([key, value]) => (
+                        <li key={key} className="flex items-start gap-2 text-sm">
+                          <span className="text-slate-400">•</span>
+                          <span className="font-medium text-slate-700">{key}:</span>
+                          <span className="text-slate-900">{String(value)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-slate-500">No additional details</p>
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                    Full Credential JSON
+                  </h3>
+                  <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
+                    <code>{JSON.stringify(verifiedCredential, null, 2)}</code>
+                  </pre>
+                </div>
               </div>
             </div>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-slate-500">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
-                <span className="text-3xl">🛡️</span>
-              </div>
-              <div className="space-y-1">
-                <p className="text-lg font-semibold text-slate-700">Awaiting verification</p>
-                <p className="text-sm text-slate-500">
-                  Import a credential JSON to validate its authenticity and see verification details here.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
+          ) : null}
+          </section>
+        )}
       </div>
       </div>
     </>

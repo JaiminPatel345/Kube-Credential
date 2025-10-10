@@ -4,6 +4,8 @@ import { issueCredential, parseAxiosError } from '../services/api';
 import type { IssuedCredential } from '../types/credential';
 import ErrorToast from '../components/ErrorToast';
 import JsonEditor from '../components/JsonEditor';
+import KeyValueEditor from '../components/KeyValueEditor';
+import ModeToggle from '../components/ModeToggle';
 
 type FormValues = {
   name: string;
@@ -18,6 +20,8 @@ type RequestState =
   | { status: 'loading' }
   | { status: 'success'; credential: IssuedCredential }
   | { status: 'error'; message: string };
+
+type DetailsMode = 'simple' | 'raw';
 
 const EMPTY_FORM: FormValues = {
   name: '',
@@ -54,6 +58,14 @@ const validateDetails = (details: string) => {
 const createCredentialJson = (credential: IssuedCredential) =>
   JSON.stringify(credential, null, 2);
 
+const sanitizeFilename = (str: string) => {
+  return str
+    .replace(/[^a-zA-Z0-9]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
+};
+
 const downloadCredential = (credential: IssuedCredential) => {
   const blob = new Blob([createCredentialJson(credential)], {
     type: 'application/json;charset=utf-8'
@@ -61,7 +73,12 @@ const downloadCredential = (credential: IssuedCredential) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `${credential.id}.json`;
+  
+  // Create filename based on name and credential type
+  const namePart = sanitizeFilename(credential.name);
+  const typePart = sanitizeFilename(credential.credentialType);
+  link.download = `credential-${namePart}-${typePart}.json`;
+  
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -73,6 +90,9 @@ const IssuancePage = () => {
   const [errors, setErrors] = useState<ValidationErrors>({});
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [detailsMode, setDetailsMode] = useState<DetailsMode>('simple');
+  const [keyValuePairs, setKeyValuePairs] = useState<Record<string, string>>({});
+  const [editorKey, setEditorKey] = useState(0);
 
   const isLoading = requestState.status === 'loading';
   const issuedCredential = requestState.status === 'success' ? requestState.credential : null;
@@ -80,6 +100,46 @@ const IssuancePage = () => {
   const handleChange = (field: keyof FormValues) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setValues((prev) => ({ ...prev, [field]: event.target.value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
+    setToastMessage(null);
+  };
+
+  const handleModeChange = (newMode: DetailsMode) => {
+    if (newMode === detailsMode) return;
+
+    if (newMode === 'raw') {
+      // Convert key-value pairs to JSON
+      const jsonString = JSON.stringify(keyValuePairs, null, 2);
+      setValues((prev) => ({ ...prev, details: jsonString }));
+      setDetailsMode('raw');
+    } else {
+      // Convert JSON to key-value pairs
+      try {
+        const parsed = JSON.parse(values.details);
+        if (parsed && typeof parsed === 'object') {
+          const pairs: Record<string, string> = {};
+          Object.entries(parsed).forEach(([key, value]) => {
+            pairs[key] = String(value);
+          });
+          setKeyValuePairs(pairs);
+          setDetailsMode('simple');
+          // Force remount of KeyValueEditor with new data
+          setEditorKey(prev => prev + 1);
+        }
+      } catch (error) {
+        // If JSON is invalid, switch anyway with empty pairs
+        setKeyValuePairs({});
+        setDetailsMode('simple');
+        setEditorKey(prev => prev + 1);
+      }
+    }
+    setErrors((prev) => ({ ...prev, details: undefined }));
+  };
+
+  const handleKeyValueChange = (pairs: Record<string, string>) => {
+    setKeyValuePairs(pairs);
+    // Update the details field with JSON representation
+    setValues((prev) => ({ ...prev, details: JSON.stringify(pairs, null, 2) }));
+    setErrors((prev) => ({ ...prev, details: undefined }));
     setToastMessage(null);
   };
 
@@ -91,9 +151,20 @@ const IssuancePage = () => {
     if (!formValues.credentialType.trim()) {
       validationErrors.credentialType = 'Credential type is required';
     }
-    const detailsError = validateDetails(formValues.details);
-    if (detailsError) {
-      validationErrors.details = detailsError;
+    
+    // Validate based on mode
+    if (detailsMode === 'simple') {
+      const hasValidPairs = Object.entries(keyValuePairs).some(
+        ([key, value]) => key.trim() !== '' || value.trim() !== ''
+      );
+      if (!hasValidPairs) {
+        validationErrors.details = 'At least one field with a key is required';
+      }
+    } else {
+      const detailsError = validateDetails(formValues.details);
+      if (detailsError) {
+        validationErrors.details = detailsError;
+      }
     }
     return validationErrors;
   };
@@ -168,7 +239,7 @@ const IssuancePage = () => {
   return (
     <>
       <ErrorToast message={toastMessage} onClose={handleToastClose} />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-4 py-10 md:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 md:px-6 lg:px-8">
       <header className="flex flex-col gap-2 text-center md:text-left">
         <p className="text-sm font-semibold uppercase tracking-widest text-brand-light">Kube Credential</p>
         <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">Issue a New Credential</h1>
@@ -178,9 +249,9 @@ const IssuancePage = () => {
         </p>
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[2fr,3fr]">
-        <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200">
-          <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+      <div className={`grid gap-6 ${issuedCredential ? 'lg:grid-cols-[2fr,3fr]' : 'lg:grid-cols-1'}`}>
+        <section className={`rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200 ${!issuedCredential ? 'mx-auto w-full max-w-3xl' : ''}`}>
+          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
             <div className="space-y-2">
               <label className="block text-sm font-medium text-slate-700" htmlFor="name">
                 Name
@@ -218,23 +289,40 @@ const IssuancePage = () => {
               {errors.credentialType ? <p className="text-sm text-red-600">{errors.credentialType}</p> : null}
             </div>
 
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-700" htmlFor="details">
-                Details (JSON)
-              </label>
-              <JsonEditor
-                value={values.details}
-                onChange={(value) => {
-                  setValues((prev) => ({ ...prev, details: value }));
-                  setErrors((prev) => ({ ...prev, details: undefined }));
-                  setToastMessage(null);
-                }}
-                placeholder='{\n  "attribute": "value"\n}'
-                disabled={isLoading}
-                height="280px"
-                showFormatButton={true}
-              />
-              <p className="text-xs text-slate-500">Paste a JSON object containing credential attributes.</p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-medium text-slate-700" htmlFor="details">
+                  Details
+                </label>
+                <ModeToggle
+                  mode={detailsMode}
+                  onModeChange={handleModeChange}
+                  disabled={isLoading}
+                />
+              </div>
+
+              {detailsMode === 'simple' ? (
+                <KeyValueEditor
+                  key={`issuance-simple-form-${editorKey}`}
+                  initialPairs={keyValuePairs}
+                  onChange={handleKeyValueChange}
+                  disabled={isLoading}
+                />
+              ) : (
+                <JsonEditor
+                  value={values.details}
+                  onChange={(value) => {
+                    setValues((prev) => ({ ...prev, details: value }));
+                    setErrors((prev) => ({ ...prev, details: undefined }));
+                    setToastMessage(null);
+                  }}
+                  placeholder='{\n  "attribute": "value"\n}'
+                  disabled={isLoading}
+                  height="280px"
+                  showFormatButton={true}
+                />
+              )}
+              
               {errors.details ? <p className="text-sm text-red-600">{errors.details}</p> : null}
             </div>
 
@@ -273,8 +361,9 @@ const IssuancePage = () => {
           </form>
         </section>
 
-        <section className="flex h-full flex-col rounded-2xl border border-dashed border-brand/30 bg-white/80 p-6 shadow-inner backdrop-blur">
-          {issuedCredential ? (
+        {issuedCredential && (
+          <section className="flex h-full flex-col rounded-2xl border border-dashed border-brand/30 bg-white/80 p-6 shadow-inner backdrop-blur">
+            {issuedCredential ? (
             <div className="flex h-full flex-col gap-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-slate-900">Issued Credential</h2>
@@ -307,16 +396,40 @@ const IssuancePage = () => {
                 </div>
               </dl>
 
-              <div className="grow rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
-                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                  </svg>
-                  Payload
-                </h3>
-                <pre className="max-h-72 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
-                  <code>{createCredentialJson(issuedCredential)}</code>
-                </pre>
+              <div className="space-y-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Credential Details
+                  </h3>
+                  {issuedCredential.details && typeof issuedCredential.details === 'object' && Object.keys(issuedCredential.details).length > 0 ? (
+                    <ul className="space-y-2">
+                      {Object.entries(issuedCredential.details).map(([key, value]) => (
+                        <li key={key} className="flex items-start gap-2 text-sm">
+                          <span className="text-slate-400">•</span>
+                          <span className="font-medium text-slate-700">{key}:</span>
+                          <span className="text-slate-900">{String(value)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm text-slate-500">No additional details</p>
+                  )}
+                </div>
+
+                <div className="grow rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                    </svg>
+                    Full Credential JSON
+                  </h3>
+                  <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
+                    <code>{createCredentialJson(issuedCredential)}</code>
+                  </pre>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -342,21 +455,9 @@ const IssuancePage = () => {
                 </button>
               </div>
             </div>
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-4 text-center text-slate-500">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
-                <span className="text-3xl">🔐</span>
-              </div>
-              <div className="space-y-1">
-                <p className="text-lg font-semibold text-slate-700">No credential issued yet</p>
-                <p className="text-sm text-slate-500">
-                  Fill out the form to issue a credential. You&apos;ll see the payload and download options once
-                  issuance completes.
-                </p>
-              </div>
-            </div>
-          )}
-        </section>
+          ) : null}
+          </section>
+        )}
       </div>
       </div>
     </>
