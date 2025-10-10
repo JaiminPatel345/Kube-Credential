@@ -3,6 +3,7 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { parseAxiosError, verifyCredential } from '../services/api';
 import type { IssuedCredential, VerifyCredentialSuccessResponse } from '../types/credential';
 import ErrorToast from '../components/ErrorToast';
+import JsonEditor from '../components/JsonEditor';
 
 type RequestState =
   | { status: 'idle' }
@@ -68,22 +69,17 @@ const VerificationPage = () => {
     }
   };
 
-  const handleTextareaChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    const { value } = event.target;
+  const handleJsonChange = (value: string) => {
     setRawJson(value);
     setValidation({ message: null });
     setToastMessage(null);
-  };
-
-  const handleTextareaBlur = () => {
-    const result = parseJson(rawJson);
-    if (result.credential) {
-      setRawJson(JSON.stringify(result.credential, null, 2));
-      setValidation({ message: null, credential: result.credential });
-      setToastMessage(null);
-    } else if (result.message) {
-      setValidation(result);
-      setToastMessage(result.message);
+    
+    // Auto-validate on change
+    if (value.trim()) {
+      const result = parseJson(value);
+      if (result.credential) {
+        setValidation({ message: null, credential: result.credential });
+      }
     }
   };
 
@@ -206,53 +202,60 @@ const VerificationPage = () => {
               <label className="block text-sm font-medium text-slate-700" htmlFor="credential-json">
                 Credential JSON
               </label>
-              <textarea
-                id="credential-json"
-                name="credential-json"
-                placeholder={EMPTY_EXAMPLE}
-                rows={12}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60"
+              <JsonEditor
                 value={rawJson}
-                onChange={handleTextareaChange}
-                onBlur={handleTextareaBlur}
+                onChange={handleJsonChange}
+                placeholder={EMPTY_EXAMPLE}
                 disabled={isLoading}
-                required
+                height="400px"
+                showFormatButton={true}
               />
               {validation.message ? <p className="text-sm text-red-600">{validation.message}</p> : null}
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={handleTriggerFile}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
                   disabled={isLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-semibold text-indigo-700 shadow-sm transition hover:border-indigo-300 hover:bg-indigo-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
                   Parse from File
                 </button>
                 <button
                   type="button"
                   onClick={handleClear}
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm transition hover:border-red-300 hover:text-red-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500"
-                  disabled={isLoading && rawJson.length === 0}
+                  disabled={isLoading || rawJson.length === 0}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 shadow-sm transition hover:border-rose-300 hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
                 >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
                   Clear
                 </button>
               </div>
 
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-semibold tracking-wide text-white shadow-lg shadow-brand/30 transition hover:bg-brand-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isLoading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-base font-semibold tracking-wide text-white shadow-lg shadow-emerald-600/30 transition hover:from-emerald-700 hover:to-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? (
                   <span className="inline-flex items-center gap-2">
-                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Verifying…
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Verifying Credential…
                   </span>
                 ) : (
-                  'Verify Credential'
+                  <>
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Verify Credential
+                  </>
                 )}
               </button>
             </div>
@@ -283,35 +286,40 @@ const VerificationPage = () => {
           {renderStatusBadge()}
 
           {verificationResult && verifiedCredential ? (
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="rounded-xl bg-slate-50 p-4 shadow-sm">
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">Issued By</dt>
-                  <dd className="text-base font-semibold text-slate-900">
+            <div className="flex flex-col gap-5">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued By</dt>
+                  <dd className="text-sm font-semibold text-slate-900">
                     {verificationResult.issuedBy ?? 'Unknown'}
                   </dd>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4 shadow-sm">
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">Issued At</dt>
-                  <dd className="text-base font-semibold text-slate-900">
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued At</dt>
+                  <dd className="text-sm font-semibold text-slate-900">
                     {verificationResult.issuedAt ? new Date(verificationResult.issuedAt).toLocaleString() : 'Unknown'}
                   </dd>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4 shadow-sm">
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">Verified By</dt>
-                  <dd className="text-base font-semibold text-slate-900">
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Verified By</dt>
+                  <dd className="text-sm font-semibold text-slate-900">
                     {verificationResult.verifiedBy ?? 'Unknown'}
                   </dd>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4 shadow-sm">
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">Credential Type</dt>
-                  <dd className="text-base font-semibold text-slate-900">{verifiedCredential.credentialType}</dd>
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Credential Type</dt>
+                  <dd className="text-sm font-semibold text-slate-900">{verifiedCredential.credentialType}</dd>
                 </div>
               </div>
 
-              <div className="rounded-xl bg-slate-900 p-4 text-slate-100 shadow-inner">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Credential Payload</h3>
-                <pre className="max-h-72 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed">
+              <div className="rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
+                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  Credential Payload
+                </h3>
+                <pre className="max-h-80 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
                   <code>{JSON.stringify(verifiedCredential, null, 2)}</code>
                 </pre>
               </div>

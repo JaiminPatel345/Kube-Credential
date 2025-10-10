@@ -3,6 +3,7 @@ import type { ChangeEvent, FormEvent } from 'react';
 import { issueCredential, parseAxiosError } from '../services/api';
 import type { IssuedCredential } from '../types/credential';
 import ErrorToast from '../components/ErrorToast';
+import JsonEditor from '../components/JsonEditor';
 
 type FormValues = {
   name: string;
@@ -221,38 +222,51 @@ const IssuancePage = () => {
               <label className="block text-sm font-medium text-slate-700" htmlFor="details">
                 Details (JSON)
               </label>
-              <textarea
-                id="details"
-                name="details"
-                rows={8}
-                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-3 font-mono text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60"
+              <JsonEditor
                 value={values.details}
-                onChange={handleChange('details')}
+                onChange={(value) => {
+                  setValues((prev) => ({ ...prev, details: value }));
+                  setErrors((prev) => ({ ...prev, details: undefined }));
+                  setToastMessage(null);
+                }}
+                placeholder='{\n  "attribute": "value"\n}'
                 disabled={isLoading}
-                required
+                height="280px"
+                showFormatButton={true}
               />
               <p className="text-xs text-slate-500">Paste a JSON object containing credential attributes.</p>
               {errors.details ? <p className="text-sm text-red-600">{errors.details}</p> : null}
             </div>
 
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              {formFeedback ? (
-                <span className={`text-sm font-medium ${formFeedback.color}`}>{formFeedback.message}</span>
-              ) : (
-                <span className="text-sm text-slate-500">All fields are required.</span>
+            <div className="flex flex-col gap-3">
+              {formFeedback && (
+                <div className={`rounded-lg border px-4 py-2.5 text-sm font-medium ${
+                  formFeedback.color === 'text-blue-600' 
+                    ? 'border-blue-200 bg-blue-50 text-blue-700'
+                    : formFeedback.color === 'text-red-600'
+                    ? 'border-red-200 bg-red-50 text-red-700'
+                    : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                }`}>
+                  {formFeedback.message}
+                </div>
               )}
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-6 py-3 text-sm font-semibold tracking-wide text-white shadow-lg shadow-brand/30 transition hover:bg-brand-dark focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isLoading}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-blue-700 px-6 py-3 text-base font-semibold tracking-wide text-white shadow-lg shadow-brand/40 transition hover:from-brand-dark hover:to-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLoading ? (
                   <span className="inline-flex items-center gap-2">
-                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Issuing…
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Issuing Credential…
                   </span>
                 ) : (
-                  'Issue Credential'
+                  <>
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    Issue Credential
+                  </>
                 )}
               </button>
             </div>
@@ -270,49 +284,60 @@ const IssuancePage = () => {
                 </span>
               </div>
 
-              <dl className="grid grid-cols-1 gap-4 text-sm text-slate-700 md:grid-cols-2">
-                <div className="rounded-xl bg-slate-50 p-4 shadow-sm">
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">Credential ID</dt>
-                  <dd className="truncate text-base font-semibold text-slate-900" title={issuedCredential.id}>
+              <dl className="grid grid-cols-1 gap-3 text-sm text-slate-700 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Credential ID</dt>
+                  <dd className="truncate text-sm font-semibold text-slate-900" title={issuedCredential.id}>
                     {issuedCredential.id}
                   </dd>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4 shadow-sm">
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">Issued By</dt>
-                  <dd className="text-base font-semibold text-slate-900">{issuedCredential.issuedBy}</dd>
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued By</dt>
+                  <dd className="text-sm font-semibold text-slate-900">{issuedCredential.issuedBy}</dd>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4 shadow-sm">
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">Issued At</dt>
-                  <dd className="text-base font-semibold text-slate-900">{formatISODate(issuedCredential.issuedAt)}</dd>
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued At</dt>
+                  <dd className="text-sm font-semibold text-slate-900">{formatISODate(issuedCredential.issuedAt)}</dd>
                 </div>
-                <div className="rounded-xl bg-slate-50 p-4 shadow-sm">
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">Hash</dt>
-                  <dd className="text-base font-semibold text-slate-900" title={issuedCredential.hash}>
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Hash</dt>
+                  <dd className="text-sm font-semibold text-slate-900" title={issuedCredential.hash}>
                     {truncateHash(issuedCredential.hash)}
                   </dd>
                 </div>
               </dl>
 
-              <div className="grow rounded-xl bg-slate-900 p-4 text-slate-100 shadow-inner">
-                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Payload</h3>
-                <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed">
+              <div className="grow rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
+                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
+                  </svg>
+                  Payload
+                </h3>
+                <pre className="max-h-72 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
                   <code>{createCredentialJson(issuedCredential)}</code>
                 </pre>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="inline-flex grow items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
                 >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
                   Copy JSON
                 </button>
                 <button
                   type="button"
                   onClick={() => issuedCredential && downloadCredential(issuedCredential)}
-                  className="inline-flex grow items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-semibold text-purple-700 shadow-sm transition hover:border-purple-300 hover:bg-purple-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600"
                 >
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
                   Download JSON
                 </button>
               </div>
