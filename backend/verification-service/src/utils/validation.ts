@@ -9,23 +9,14 @@ const isoDateString = z
   });
 
 const detailsSchema = z
-  .record(z.any(), {
-    required_error: 'Details must include at least one entry'
-  })
+  .record(z.string(), z.any())
   .refine((value) => !Array.isArray(value), {
     message: 'Details must be a JSON object'
   })
   .superRefine((details, ctx) => {
     const entries = Object.entries(details ?? {});
 
-    if (entries.length === 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Details must include at least one entry',
-        path: ['details']
-      });
-      return;
-    }
+    // Allow empty details object - no minimum entry requirement
 
     entries.forEach(([rawKey, rawValue]) => {
       const key = rawKey.trim();
@@ -38,10 +29,10 @@ const detailsSchema = z
         return;
       }
 
-      if (rawValue === null || rawValue === undefined) {
+      if (rawValue === null || rawValue === undefined || rawValue === '') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `Value for "${key}" cannot be empty`,
+          message: `Detail value for "${key}" cannot be empty, null, or undefined`,
           path: ['details', rawKey]
         });
         return;
@@ -50,7 +41,7 @@ const detailsSchema = z
       if (typeof rawValue === 'string' && rawValue.trim().length === 0) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `Value for "${key}" cannot be empty`,
+          message: `Detail value for "${key}" cannot be empty`,
           path: ['details', rawKey]
         });
       }

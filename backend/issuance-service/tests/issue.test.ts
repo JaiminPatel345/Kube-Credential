@@ -132,6 +132,46 @@ describe('POST /api/issue', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it('rejects credentials with empty or null values in details', async () => {
+    const payloadWithEmptyValue = {
+      name: 'Test User',
+      credentialType: 'test-credential',
+      details: {
+        "67": "hj",
+        "87t": ""
+      }
+    };
+
+    const response = await request(app)
+      .post('/api/issue')
+      .send(payloadWithEmptyValue)
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('cannot be empty');
+    expect(Array.isArray(response.body.errors)).toBe(true);
+
+    const payloadWithNullValue = {
+      name: 'Test User',
+      credentialType: 'test-credential',
+      details: {
+        "key1": "value1",
+        "key2": null
+      }
+    };
+
+    const response2 = await request(app)
+      .post('/api/issue')
+      .send(payloadWithNullValue)
+      .expect(400);
+
+    expect(response2.body.success).toBe(false);
+    expect(response2.body.message).toContain('cannot be empty');
+    expect(Array.isArray(response2.body.errors)).toBe(true);
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('retries sync before logging failure but still responds with success', async () => {
     const payload = {
       name: 'Charlie Day',

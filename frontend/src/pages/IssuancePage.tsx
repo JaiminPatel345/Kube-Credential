@@ -43,7 +43,14 @@ const validateDetails = (details: string) => {
     if (!parsed || typeof parsed !== 'object') {
       return 'Details must be a JSON object';
     }
-    // Allow empty details object
+    
+    // Check that all values are non-null and non-empty
+    for (const [key, value] of Object.entries(parsed)) {
+      if (value === null || value === undefined || value === '') {
+        return `Detail value for "${key}" cannot be empty or null`;
+      }
+    }
+    
     return null;
   } catch (error) {
     if (error instanceof Error) {
@@ -152,9 +159,15 @@ const IssuancePage = () => {
       validationErrors.credentialType = 'Credential type is required';
     }
     
-    // Validate based on mode
+    // Validate details in both modes
     if (detailsMode === 'simple') {
-      // Details can be empty - no validation needed for simple mode
+      // Validate key-value pairs - check for empty values
+      for (const [key, value] of Object.entries(keyValuePairs)) {
+        if (key.trim() && (!value || value.trim() === '')) {
+          validationErrors.details = `Detail value for "${key}" cannot be empty`;
+          break;
+        }
+      }
     } else {
       const detailsError = validateDetails(formValues.details);
       if (detailsError) {
@@ -180,6 +193,19 @@ const IssuancePage = () => {
           setToastMessage('JSON must include "name" and "credentialType" fields');
           return;
         }
+        
+        // Validate details object values
+        if (parsed.details && typeof parsed.details === 'object') {
+          for (const [key, value] of Object.entries(parsed.details)) {
+            if (value === null || value === undefined || value === '') {
+              const errorMsg = `Detail value for "${key}" cannot be empty or null`;
+              setErrors({ details: errorMsg });
+              setToastMessage(errorMsg);
+              return;
+            }
+          }
+        }
+        
         name = parsed.name;
         credentialType = parsed.credentialType;
         detailsPayload = parsed.details || {};
@@ -383,11 +409,6 @@ const IssuancePage = () => {
                 <label className="block text-sm font-medium text-slate-700" htmlFor="details">
                   Details
                 </label>
-                <ModeToggle
-                  mode={detailsMode}
-                  onModeChange={handleModeChange}
-                  disabled={isLoading}
-                />
               </div>
 
               {detailsMode === 'simple' ? (

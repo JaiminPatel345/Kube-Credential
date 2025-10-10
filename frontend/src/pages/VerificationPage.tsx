@@ -126,21 +126,29 @@ const VerificationPage = () => {
       }
 
       const detailsValue = parsed.details;
-      if (!detailsValue || typeof detailsValue !== 'object' || Array.isArray(detailsValue)) {
+      // Allow empty details or missing details field
+      if (detailsValue !== undefined && (typeof detailsValue !== 'object' || Array.isArray(detailsValue))) {
         return { message: 'Details must be a JSON object' };
       }
 
       const normalizedDetails: Record<string, unknown> = {};
-      Object.entries(detailsValue as Record<string, unknown>).forEach(([key, value]) => {
-        const trimmedKey = String(key).trim();
-        const normalizedValue = typeof value === 'string' ? value.trim() : value;
-        if (trimmedKey.length > 0 && (normalizedValue ?? '') !== '') {
-          normalizedDetails[trimmedKey] = normalizedValue;
+      
+      // Process details only if they exist
+      if (detailsValue && typeof detailsValue === 'object') {
+        // Validate that if details exist, values are not empty
+        for (const [key, value] of Object.entries(detailsValue as Record<string, unknown>)) {
+          if (key.trim() && (value === null || value === undefined || value === '')) {
+            return { message: `Detail value for "${key}" cannot be empty or null` };
+          }
         }
-      });
-
-      if (Object.keys(normalizedDetails).length === 0) {
-        return { message: 'Details must include at least one entry' };
+        
+        Object.entries(detailsValue as Record<string, unknown>).forEach(([key, value]) => {
+          const trimmedKey = String(key).trim();
+          const normalizedValue = typeof value === 'string' ? value.trim() : value;
+          if (trimmedKey.length > 0 && (normalizedValue ?? '') !== '') {
+            normalizedDetails[trimmedKey] = normalizedValue;
+          }
+        });
       }
 
       const credential: IssuedCredential = {
@@ -337,14 +345,38 @@ const VerificationPage = () => {
         }
       });
 
-      if (Object.keys(normalizedDetails).length === 0) {
-        errors.details = 'Details must include at least one entry';
+      // Allow empty details object
+      // Validate that if details exist, values are not empty
+      for (const [key, value] of Object.entries(simpleFormData.details)) {
+        if (key.trim() && (!value || value.trim() === '')) {
+          errors.details = `Detail value for "${key}" cannot be empty`;
+          break;
+        }
       }
 
       if (Object.keys(errors).length > 0) {
         setSimpleErrors(errors);
-        const missing = Object.keys(errors).map((field) => SIMPLE_FIELD_LABELS[field as keyof SimpleFormData]);
-        const message = `Missing required fields: ${missing.join(', ')}`;
+        
+        // Separate missing required fields from details validation errors
+        const missingFields: string[] = [];
+        let detailsError: string | undefined;
+        
+        Object.keys(errors).forEach((field) => {
+          if (field === 'details') {
+            detailsError = errors.details;
+          } else {
+            missingFields.push(SIMPLE_FIELD_LABELS[field as keyof SimpleFormData]);
+          }
+        });
+        
+        let message = '';
+        if (missingFields.length > 0) {
+          message = `Missing required fields: ${missingFields.join(', ')}`;
+        }
+        if (detailsError) {
+          message = message ? `${message}. ${detailsError}` : detailsError;
+        }
+        
         setValidation({ message });
         setToastMessage(message);
         return;
@@ -624,7 +656,6 @@ const VerificationPage = () => {
                   {simpleErrors.details ? <p className="text-xs text-rose-600">{simpleErrors.details}</p> : null}
                 </div>
 
-                {validation.message ? <p className="text-sm text-red-600">{validation.message}</p> : null}
               </div>
             ) : (
               <div className="space-y-3">

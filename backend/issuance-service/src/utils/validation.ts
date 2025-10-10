@@ -1,9 +1,19 @@
 import { z } from 'zod';
 
 const detailsSchema = z
-  .object({})
-  .catchall(z.any());
-  // Allow empty details object - no minimum property requirement
+  .record(z.string(), z.any())
+  .superRefine((details, ctx) => {
+    // Check each value in the details object
+    for (const [key, value] of Object.entries(details)) {
+      if (value === null || value === undefined || value === '') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Detail value for "${key}" cannot be empty, null, or undefined`,
+          path: [key]
+        });
+      }
+    }
+  });
 
 export const IssueCredentialSchema = z.object({
   name: z.string().trim().min(1).max(255),

@@ -41,9 +41,18 @@ export const createApp = () => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ZodError) {
+      // Check if there's a details-related error and make the message more specific
+      const detailsError = err.issues.find(issue => 
+        issue.path.includes('details') && issue.code === 'custom'
+      );
+      
+      const message = detailsError 
+        ? detailsError.message 
+        : 'Invalid request payload';
+      
       return res.status(400).json({
         success: false,
-        message: 'Invalid request payload',
+        message,
         errors: err.issues
       });
     }
