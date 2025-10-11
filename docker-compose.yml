@@ -2,58 +2,71 @@ services:
   issuance-service:
     build:
       context: ./backend/issuance-service
-      target: production
+      target: development
     ports:
       - "3001:3001"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3001
-      DATABASE_PATH: /data/credentials.db
+      DATABASE_PATH: /app/data/credentials.db
       HOSTNAME: issuance-service
       VERIFICATION_SERVICE_URL: http://verification-service:3002
-      SYNC_SECRET: ${SYNC_SECRET}
-      FRONTEND_URL: ${FRONTEND_URL}
+      SYNC_SECRET: ${SYNC_SECRET:-please_hire_me}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      npm_config_build_from_source: true
     volumes:
       - issuance-data:/data
-    depends_on:
-      verification-service:
-        condition: service_started
-    restart: unless-stopped
+      - ./backend/issuance-service:/app
+      - /app/node_modules
+    command: yarn dev
+    stdin_open: true
+    tty: true
 
   verification-service:
     build:
       context: ./backend/verification-service
-      target: production
+      target: development
     ports:
       - "3002:3002"
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: 3002
-      DATABASE_PATH: /data/verification.db
+      DATABASE_PATH: /app/data/verification.db
       HOSTNAME: verification-service
-      SYNC_SECRET: ${SYNC_SECRET}
+      SYNC_SECRET: ${SYNC_SECRET:-please_hire_me}
       ISSUANCE_SERVICE_URL: http://issuance-service:3001
-      FRONTEND_URL: ${FRONTEND_URL}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      npm_config_build_from_source: true
     volumes:
       - verification-data:/data
+      - ./backend/verification-service:/app
+      - /app/node_modules
+    command: yarn dev
+    stdin_open: true
+    tty: true
     depends_on:
       issuance-service:
         condition: service_started
-    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
-      target: production
+      target: development
     ports:
       - "5173:5173"
     environment:
-      VITE_ISSUANCE_API_URL: ${ISSUANCE_API_URL:-http://localhost:3001}
-      VITE_VERIFICATION_API_URL: ${VERIFICATION_API_URL:-http://localhost:3002}
+      VITE_ISSUANCE_API_URL: http://localhost:3001
+      VITE_VERIFICATION_API_URL: http://localhost:3002
+      VITE_NODE_ENV: development
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: yarn dev --host 0.0.0.0 --port 5173
+    stdin_open: true
+    tty: true
     depends_on:
       - issuance-service
       - verification-service
-    restart: unless-stopped
 
 volumes:
   issuance-data:
