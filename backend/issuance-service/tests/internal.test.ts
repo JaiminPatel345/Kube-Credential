@@ -1,17 +1,15 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import request from 'supertest';
 import type { Express } from 'express';
-import type DatabaseConstructor from 'better-sqlite3';
+import type { Pool } from 'pg';
 
 import type { CredentialEntity } from '../src/models/credentialModel';
 import { generateIntegrityHash } from '../src/utils/hash';
 
-type BetterSqliteDatabase = DatabaseConstructor.Database;
-
 let app: Express;
 let initializeDatabase: () => Promise<void>;
 let closeDatabase: () => Promise<void>;
-let getDatabase: () => BetterSqliteDatabase;
+let getPool: () => Pool;
 
 const buildCredential = (overrides?: Partial<CredentialEntity>): CredentialEntity => {
   const base: CredentialEntity = {
@@ -31,7 +29,7 @@ const buildCredential = (overrides?: Partial<CredentialEntity>): CredentialEntit
 
 beforeAll(async () => {
   process.env.NODE_ENV = 'test';
-  process.env.DATABASE_PATH = ':memory:';
+  process.env.DATABASE_URL = 'memory://issuance-internal-test';
   process.env.HOSTNAME = 'worker-test';
   process.env.SYNC_SECRET = 'top-secret';
 
@@ -43,7 +41,7 @@ beforeAll(async () => {
   app = indexModule.createApp();
   initializeDatabase = databaseModule.initializeDatabase;
   closeDatabase = databaseModule.closeDatabase;
-  getDatabase = databaseModule.getDatabase;
+  getPool = databaseModule.getPool;
 
   await initializeDatabase();
 });
@@ -52,30 +50,30 @@ afterAll(async () => {
   await closeDatabase();
 });
 
-beforeEach(() => {
-  const db = getDatabase();
-  db.prepare('DELETE FROM credentials').run();
+beforeEach(async () => {
+  const pool = getPool();
+  await pool.query('TRUNCATE TABLE credentials');
 });
 
 describe('GET /internal/credentials', () => {
   it('returns credentials when authorized', async () => {
     const credentialA = buildCredential({ issuedAt: '2024-01-01T00:00:00.000Z' });
     const credentialB = buildCredential({ issuedAt: '2024-02-01T00:00:00.000Z' });
-    const db = getDatabase();
-
-    const insert = db.prepare(
-      'INSERT INTO credentials (id, name, credentialType, details, issuedBy, issuedAt, hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    );
+    const pool = getPool();
 
     for (const credential of [credentialA, credentialB]) {
-      insert.run(
-        credential.id,
-        credential.name,
-        credential.credentialType,
-        JSON.stringify(credential.details),
-        credential.issuedBy,
-        credential.issuedAt,
-        credential.hash
+      await pool.query(
+        `INSERT INTO credentials (id, name, credential_type, details, issued_by, issued_at, hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          credential.id,
+          credential.name,
+          credential.credentialType,
+          credential.details,
+          credential.issuedBy,
+          credential.issuedAt,
+          credential.hash
+        ]
       );
     }
 
@@ -97,21 +95,21 @@ describe('GET /internal/credentials', () => {
   it('filters credentials using since parameter', async () => {
     const credentialA = buildCredential({ issuedAt: '2024-01-01T00:00:00.000Z' });
     const credentialB = buildCredential({ issuedAt: '2024-02-01T00:00:00.000Z' });
-    const db = getDatabase();
-
-    const insert = db.prepare(
-      'INSERT INTO credentials (id, name, credentialType, details, issuedBy, issuedAt, hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    );
+    const pool = getPool();
 
     for (const credential of [credentialA, credentialB]) {
-      insert.run(
-        credential.id,
-        credential.name,
-        credential.credentialType,
-        JSON.stringify(credential.details),
-        credential.issuedBy,
-        credential.issuedAt,
-        credential.hash
+      await pool.query(
+        `INSERT INTO credentials (id, name, credential_type, details, issued_by, issued_at, hash)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          credential.id,
+          credential.name,
+          credential.credentialType,
+          credential.details,
+          credential.issuedBy,
+          credential.issuedAt,
+          credential.hash
+        ]
       );
     }
 

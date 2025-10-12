@@ -43,7 +43,7 @@ export const syncCredentialWithVerificationService = async (credential: Credenti
   while (attempt < MAX_SYNC_ATTEMPTS) {
     attempt += 1;
     try {
-  const response = await fetchFn(endpoint, {
+      const response = await fetchFn(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(credential)

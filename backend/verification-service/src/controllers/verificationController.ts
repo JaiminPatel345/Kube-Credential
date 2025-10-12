@@ -1,6 +1,6 @@
 import { RequestHandler } from 'express';
 import { credentialModel } from '../models/credentialModel';
-import { generateIntegrityHash } from '../utils/hash';
+import { canonicalize, generateIntegrityHash } from '../utils/hash';
 import { AppError } from '../utils/errors';
 import { CredentialPayloadSchema, SyncRequestSchema, VerifyRequestSchema } from '../utils/validation';
 import { getWorkerLabel, serviceConfig } from '../config';
@@ -21,11 +21,11 @@ const buildCanonicalPayload = (payload: {
   issuedAt: payload.issuedAt
 });
 
-export const verifyCredential: RequestHandler = (req, res, next) => {
+export const verifyCredential: RequestHandler = async (req, res, next) => {
   try {
     const payload = VerifyRequestSchema.parse(req.body);
 
-    const record = credentialModel.findById(payload.id);
+    const record = await credentialModel.findById(payload.id);
 
     if (!record) {
       return res.status(200).json({
@@ -48,7 +48,7 @@ export const verifyCredential: RequestHandler = (req, res, next) => {
       record.credentialType === payload.credentialType &&
       record.issuedBy === payload.issuedBy &&
       record.issuedAt === payload.issuedAt &&
-      JSON.stringify(record.details) === JSON.stringify(payload.details);
+      canonicalize(record.details) === canonicalize(payload.details);
 
     const hashValid =
       record.hash === expectedRecordHash &&
@@ -77,7 +77,7 @@ export const verifyCredential: RequestHandler = (req, res, next) => {
   }
 };
 
-export const syncCredential: RequestHandler = (req, res, next) => {
+export const syncCredential: RequestHandler = async (req, res, next) => {
   try {
     if (serviceConfig.syncSecret) {
       const headerSecret = req.header('x-internal-sync-key');
@@ -95,7 +95,7 @@ export const syncCredential: RequestHandler = (req, res, next) => {
       throw new AppError('Invalid credential hash', 400);
     }
 
-    credentialModel.upsert({ ...payload });
+    await credentialModel.upsert({ ...payload });
 
     return res.status(200).json({
       success: true,

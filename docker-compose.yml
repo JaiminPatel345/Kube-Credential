@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   issuance-service:
     build:
       context: ./backend/issuance-service
@@ -8,19 +24,22 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3001
-      DATABASE_PATH: /app/data/credentials.db
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/issuance_service
+      DATABASE_SSL: '0'
       HOSTNAME: issuance-service
       VERIFICATION_SERVICE_URL: http://verification-service:3002
       SYNC_SECRET: ${SYNC_SECRET:-please_hire_me}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       npm_config_build_from_source: true
     volumes:
-      - issuance-data:/data
       - ./backend/issuance-service:/app
       - /app/node_modules
     command: yarn dev
     stdin_open: true
     tty: true
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   verification-service:
     build:
@@ -31,20 +50,22 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3002
-      DATABASE_PATH: /app/data/verification.db
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/verification_service
+      DATABASE_SSL: '0'
       HOSTNAME: verification-service
       SYNC_SECRET: ${SYNC_SECRET:-please_hire_me}
       ISSUANCE_SERVICE_URL: http://issuance-service:3001
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       npm_config_build_from_source: true
     volumes:
-      - verification-data:/data
       - ./backend/verification-service:/app
       - /app/node_modules
     command: yarn dev
     stdin_open: true
     tty: true
     depends_on:
+      postgres:
+        condition: service_healthy
       issuance-service:
         condition: service_started
 
@@ -69,5 +90,4 @@ services:
       - verification-service
 
 volumes:
-  issuance-data:
-  verification-data:
+  postgres-data:

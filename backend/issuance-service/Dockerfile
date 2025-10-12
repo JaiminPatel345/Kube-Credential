@@ -25,7 +25,7 @@ RUN yarn build
 FROM node:20-slim AS production
 ENV NODE_ENV=production
 ENV PORT=3001
-ENV DATABASE_PATH=/data/credentials.db
+ENV DATABASE_URL=postgres://postgres:postgres@postgres:5432/issuance_service
 WORKDIR /app
 
 COPY --chown=node:node package.json yarn.lock* ./
@@ -36,5 +36,4 @@ COPY --chown=node:node --from=build /app/dist ./dist
 USER node
 
 EXPOSE 3001
-VOLUME ["/data"]
 CMD ["node", "dist/index.js"]

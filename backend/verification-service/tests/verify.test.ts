@@ -1,19 +1,17 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import request from 'supertest';
 import type { Express } from 'express';
-import type DatabaseConstructor from 'better-sqlite3';
+import type { Pool } from 'pg';
 
 import { generateIntegrityHash } from '../src/utils/hash';
 import type { CredentialEntity } from '../src/models/credentialModel';
-
-type BetterSqliteDatabase = DatabaseConstructor.Database;
 
 const SYNC_SECRET = 'test-sync-secret';
 
 let app: Express;
 let initializeDatabase: () => Promise<void>;
 let closeDatabase: () => Promise<void>;
-let getDatabase: () => BetterSqliteDatabase;
+let getPool: () => Pool;
 
 const buildCredential = (overrides?: Partial<CredentialEntity>): CredentialEntity => {
   const base: CredentialEntity = {
@@ -37,7 +35,7 @@ const buildCredential = (overrides?: Partial<CredentialEntity>): CredentialEntit
 
 beforeAll(async () => {
   process.env.NODE_ENV = 'test';
-  process.env.DATABASE_PATH = ':memory:';
+  process.env.DATABASE_URL = 'memory://verification-test';
   process.env.HOSTNAME = 'verification-test';
   process.env.PORT = '0';
   process.env.SYNC_SECRET = SYNC_SECRET;
@@ -50,7 +48,7 @@ beforeAll(async () => {
   app = indexModule.createApp();
   initializeDatabase = databaseModule.initializeDatabase;
   closeDatabase = databaseModule.closeDatabase;
-  getDatabase = databaseModule.getDatabase;
+  getPool = databaseModule.getPool;
 
   await initializeDatabase();
 });
@@ -59,25 +57,27 @@ afterAll(async () => {
   await closeDatabase();
 });
 
-beforeEach(() => {
-  const db = getDatabase();
-  db.prepare('DELETE FROM credentials').run();
+beforeEach(async () => {
+  const pool = getPool();
+  await pool.query('TRUNCATE TABLE credentials');
 });
 
 describe('POST /api/verify', () => {
   it('returns valid true when credential matches database record', async () => {
     const credential = buildCredential();
-    const db = getDatabase();
-    db.prepare(
-      'INSERT INTO credentials (id, name, credentialType, details, issuedBy, issuedAt, hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(
-      credential.id,
-      credential.name,
-      credential.credentialType,
-      JSON.stringify(credential.details),
-      credential.issuedBy,
-      credential.issuedAt,
-      credential.hash
+    const pool = getPool();
+    await pool.query(
+      `INSERT INTO credentials (id, name, credential_type, details, issued_by, issued_at, hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        credential.id,
+        credential.name,
+        credential.credentialType,
+        credential.details,
+        credential.issuedBy,
+        credential.issuedAt,
+        credential.hash
+      ]
     );
 
     const response = await request(app).post('/api/verify').send(credential).expect(200);
@@ -107,17 +107,19 @@ describe('POST /api/verify', () => {
 
   it('returns valid false when credential hash mismatches', async () => {
     const credential = buildCredential();
-    const db = getDatabase();
-    db.prepare(
-      'INSERT INTO credentials (id, name, credentialType, details, issuedBy, issuedAt, hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(
-      credential.id,
-      credential.name,
-      credential.credentialType,
-      JSON.stringify(credential.details),
-      credential.issuedBy,
-      credential.issuedAt,
-      credential.hash
+    const pool = getPool();
+    await pool.query(
+      `INSERT INTO credentials (id, name, credential_type, details, issued_by, issued_at, hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [
+        credential.id,
+        credential.name,
+        credential.credentialType,
+        credential.details,
+        credential.issuedBy,
+        credential.issuedAt,
+        credential.hash
+      ]
     );
 
     const tampered = { ...credential, name: 'Alice Tampered' };
@@ -149,19 +151,31 @@ describe('POST /internal/sync', () => {
       message: 'Credential synchronized successfully'
     });
 
-    const db = getDatabase();
-    const row = db
-      .prepare('SELECT id, name, credentialType, details, issuedBy, issuedAt, hash FROM credentials WHERE id = ?')
-      .get(credential.id);
+    const pool = getPool();
+    const result = await pool.query(
+      `SELECT
+         id,
+         name,
+         credential_type AS "credentialType",
+         details,
+         issued_by AS "issuedBy",
+         issued_at AS "issuedAt",
+         hash
+       FROM credentials
+       WHERE id = $1`,
+      [credential.id]
+    );
 
-    expect(row).toMatchObject({
+    const stored = result.rows[0];
+
+    expect(stored).toMatchObject({
       id: credential.id,
       name: credential.name,
       credentialType: credential.credentialType,
       issuedBy: credential.issuedBy,
-      issuedAt: credential.issuedAt,
       hash: credential.hash
     });
+    expect(new Date(stored.issuedAt).toISOString()).toBe(credential.issuedAt);
   });
 
   it('rejects credential when hash invalid', async () => {

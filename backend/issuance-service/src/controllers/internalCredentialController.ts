@@ -11,7 +11,7 @@ const validateSyncKey = (headerValue: string | undefined) => {
   return headerValue === serviceConfig.syncSecret;
 };
 
-export const listCredentials: RequestHandler = (req, res, next) => {
+export const listCredentials: RequestHandler = async (req, res, next) => {
   try {
     if (!validateSyncKey(req.header('x-internal-sync-key'))) {
       throw new AppError('Unauthorized access', 401);
@@ -28,7 +28,7 @@ export const listCredentials: RequestHandler = (req, res, next) => {
       since = new Date(parsedDate).toISOString();
     }
 
-    const credentials = credentialModel.listIssuedAfter(since);
+    const credentials = await credentialModel.listIssuedAfter(since);
 
     res.json({
       success: true,

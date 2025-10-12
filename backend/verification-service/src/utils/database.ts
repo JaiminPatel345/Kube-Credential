@@ -1,52 +1,78 @@
-import DatabaseConstructor from 'better-sqlite3';
+import { Pool, type PoolClient, type PoolConfig } from 'pg';
+import { newDb, type IMemoryDb } from 'pg-mem';
 import { serviceConfig } from '../config';
 
-export type BetterSqliteDatabase = DatabaseConstructor.Database;
+let pool: Pool | null = null;
+let memoryDb: IMemoryDb | null = null;
 
-let db: BetterSqliteDatabase | null = null;
+const createPool = (): Pool => {
+  const { databaseUrl, databaseSsl } = serviceConfig;
 
-const createDatabase = (): BetterSqliteDatabase => {
-  const instance = new DatabaseConstructor(serviceConfig.databasePath, {
-    fileMustExist: false
-  });
+  if (databaseUrl.startsWith('memory://')) {
+    memoryDb = newDb({ autoCreateForeignKeyIndices: true });
+    memoryDb.public.none("SET TIME ZONE 'UTC'");
+    const adapter = memoryDb.adapters.createPg();
+    return new adapter.Pool();
+  }
 
-  instance.pragma('foreign_keys = ON');
-  instance.pragma('journal_mode = WAL');
+  const config: PoolConfig = {
+    connectionString: databaseUrl
+  };
 
-  instance.exec(`
+  if (databaseSsl) {
+    config.ssl = databaseSsl;
+  }
+
+  return new Pool(config);
+};
+
+const getPoolInternal = (): Pool => {
+  if (!pool) {
+    pool = createPool();
+  }
+  return pool;
+};
+
+const createSchema = async (client: PoolClient): Promise<void> => {
+  await client.query(`
     CREATE TABLE IF NOT EXISTS credentials (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      credentialType TEXT NOT NULL,
-      details TEXT NOT NULL,
-      issuedBy TEXT NOT NULL,
-      issuedAt TEXT NOT NULL,
+      credential_type TEXT NOT NULL,
+      details JSONB NOT NULL,
+      issued_by TEXT NOT NULL,
+      issued_at TIMESTAMPTZ NOT NULL,
       hash TEXT NOT NULL
-    );
+    )
   `);
 
-  instance.exec(`
+  await client.query(`
     CREATE INDEX IF NOT EXISTS idx_credentials_hash
-    ON credentials (hash);
+    ON credentials (hash)
   `);
 
-  return instance;
+  await client.query(`
+    CREATE INDEX IF NOT EXISTS idx_credentials_issued_at
+    ON credentials (issued_at)
+  `);
 };
 
-export const getDatabase = (): BetterSqliteDatabase => {
-  if (!db) {
-    db = createDatabase();
-  }
-  return db;
-};
+export const getPool = (): Pool => getPoolInternal();
 
 export const closeDatabase = async (): Promise<void> => {
-  if (db) {
-    db.close();
-    db = null;
+  if (pool) {
+    await pool.end();
+    pool = null;
+    memoryDb = null;
   }
 };
 
 export const initializeDatabase = async (): Promise<void> => {
-  getDatabase();
+  const poolInstance = getPoolInternal();
+  const client = await poolInstance.connect();
+  try {
+    await createSchema(client);
+  } finally {
+    client.release();
+  }
 };

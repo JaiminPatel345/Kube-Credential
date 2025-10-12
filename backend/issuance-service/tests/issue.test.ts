@@ -1,21 +1,19 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
 import request from 'supertest';
 import type { Express } from 'express';
-import type DatabaseConstructor from 'better-sqlite3';
-
-type BetterSqliteDatabase = DatabaseConstructor.Database;
+import type { Pool } from 'pg';
 
 let app: Express;
 let initializeDatabase: () => Promise<void>;
 let closeDatabase: () => Promise<void>;
-let getDatabase: () => BetterSqliteDatabase;
+let getPool: () => Pool;
 let originalFetch: typeof global.fetch;
 
 const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
 
 beforeAll(async () => {
   process.env.NODE_ENV = 'test';
-  process.env.DATABASE_PATH = ':memory:';
+  process.env.DATABASE_URL = 'memory://issuance-test';
   process.env.HOSTNAME = 'worker-test';
   process.env.PORT = '0';
   process.env.VERIFICATION_SERVICE_URL = 'http://localhost:3002';
@@ -32,7 +30,7 @@ beforeAll(async () => {
   app = indexModule.createApp();
   initializeDatabase = databaseModule.initializeDatabase;
   closeDatabase = databaseModule.closeDatabase;
-  getDatabase = databaseModule.getDatabase;
+  getPool = databaseModule.getPool;
 
   await initializeDatabase();
 });
@@ -42,9 +40,9 @@ afterAll(async () => {
   global.fetch = originalFetch;
 });
 
-beforeEach(() => {
-  const db = getDatabase();
-  db.prepare('DELETE FROM credentials').run();
+beforeEach(async () => {
+  const pool = getPool();
+  await pool.query('TRUNCATE TABLE credentials');
   mockFetch.mockReset();
   mockFetch.mockResolvedValue({
     ok: true,

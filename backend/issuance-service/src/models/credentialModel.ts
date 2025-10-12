@@ -1,4 +1,4 @@
-import { getDatabase } from '../utils/database';
+import { getPool } from '../utils/database';
 
 export interface CredentialEntity {
   id: string;
@@ -10,51 +10,105 @@ export interface CredentialEntity {
   hash: string;
 }
 
-type CredentialRow = Omit<CredentialEntity, 'details'> & { details: string };
+type CredentialRow = {
+  id: string;
+  name: string;
+  credentialType: string;
+  details: Record<string, unknown>;
+  issuedBy: string;
+  issuedAt: string | Date;
+  hash: string;
+};
 
 const mapRow = (row: CredentialRow): CredentialEntity => ({
-  ...row,
-  details: JSON.parse(row.details) as Record<string, unknown>
+  id: row.id,
+  name: row.name,
+  credentialType: row.credentialType,
+  details: row.details,
+  issuedBy: row.issuedBy,
+  issuedAt: row.issuedAt instanceof Date ? row.issuedAt.toISOString() : new Date(row.issuedAt).toISOString(),
+  hash: row.hash
 });
 
 export const credentialModel = {
-  findById(id: string): CredentialEntity | null {
-    const db = getDatabase();
-    const row = db
-      .prepare('SELECT id, name, credentialType, details, issuedBy, issuedAt, hash FROM credentials WHERE id = ?')
-      .get(id) as CredentialRow | undefined;
+  async findById(id: string): Promise<CredentialEntity | null> {
+    const pool = getPool();
+    const result = await pool.query<CredentialRow>(
+      `SELECT
+        id,
+        name,
+        credential_type AS "credentialType",
+        details,
+        issued_by AS "issuedBy",
+        issued_at AS "issuedAt",
+        hash
+       FROM credentials
+       WHERE id = $1`,
+      [id]
+    );
+
+    const row = result.rows[0];
     return row ? mapRow(row) : null;
   },
 
-  create(entity: CredentialEntity): CredentialEntity {
-    const db = getDatabase();
-    db.prepare(
-      'INSERT INTO credentials (id, name, credentialType, details, issuedBy, issuedAt, hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    ).run(
-      entity.id,
-      entity.name,
-      entity.credentialType,
-      JSON.stringify(entity.details),
-      entity.issuedBy,
-      entity.issuedAt,
-      entity.hash
+  async create(entity: CredentialEntity): Promise<CredentialEntity> {
+    const pool = getPool();
+    const result = await pool.query<CredentialRow>(
+      `INSERT INTO credentials (id, name, credential_type, details, issued_by, issued_at, hash)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING
+         id,
+         name,
+         credential_type AS "credentialType",
+         details,
+         issued_by AS "issuedBy",
+         issued_at AS "issuedAt",
+         hash`,
+      [
+        entity.id,
+        entity.name,
+        entity.credentialType,
+        entity.details,
+        entity.issuedBy,
+        entity.issuedAt,
+        entity.hash
+      ]
     );
-    return { ...entity };
+
+    return mapRow(result.rows[0]);
   },
 
-  listIssuedAfter(issuedAfter?: string): CredentialEntity[] {
-    const db = getDatabase();
-    const query = issuedAfter
-      ? `SELECT id, name, credentialType, details, issuedBy, issuedAt, hash FROM credentials
-         WHERE issuedAt > ?
-         ORDER BY issuedAt ASC`
-      : `SELECT id, name, credentialType, details, issuedBy, issuedAt, hash FROM credentials
-         ORDER BY issuedAt ASC`;
+  async listIssuedAfter(issuedAfter?: string): Promise<CredentialEntity[]> {
+    const pool = getPool();
 
-    const rows = issuedAfter
-      ? (db.prepare(query).all(issuedAfter) as CredentialRow[])
-      : (db.prepare(query).all() as CredentialRow[]);
+    const result = issuedAfter
+      ? await pool.query<CredentialRow>(
+          `SELECT
+             id,
+             name,
+             credential_type AS "credentialType",
+             details,
+             issued_by AS "issuedBy",
+             issued_at AS "issuedAt",
+             hash
+           FROM credentials
+           WHERE issued_at > $1
+           ORDER BY issued_at ASC`,
+          [issuedAfter]
+        )
+      : await pool.query<CredentialRow>(
+          `SELECT
+             id,
+             name,
+             credential_type AS "credentialType",
+             details,
+             issued_by AS "issuedBy",
+             issued_at AS "issuedAt",
+             hash
+           FROM credentials
+           ORDER BY issued_at ASC`
+        );
 
-    return rows.map((row) => mapRow(row));
+    return result.rows.map(mapRow);
   }
 };

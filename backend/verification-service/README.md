@@ -5,7 +5,7 @@ The verification microservice validates credentials issued by the companion issu
 ## Features
 
 - Express.js API written in TypeScript with strict runtime validation
-- Embedded SQLite database (via `better-sqlite3`) using WAL mode
+- PostgreSQL storage accessed through a connection pool (`pg`) with JSONB columns
 - `/api/verify` endpoint compares incoming credential payloads against synchronized records
 - `/internal/sync` endpoint ingests new credentials from the issuance service (optional shared secret)
 - Comprehensive Jest test suite for verification and synchronization flows
@@ -17,7 +17,7 @@ The verification microservice validates credentials issued by the companion issu
 cd backend/verification-service
 yarn install
 cp .env.example .env
-# Adjust PORT / DATABASE_PATH / HOSTNAME / SYNC_SECRET as needed
+# Adjust PORT / DATABASE_URL / HOSTNAME / SYNC_SECRET as needed
 yarn dev
 ```
 
@@ -28,7 +28,8 @@ The service listens on port `3002` by default. Health check is available at `GET
 | Variable               | Default                     | Purpose                                                                 |
 |------------------------|-----------------------------|-------------------------------------------------------------------------|
 | `PORT`                 | `3002`                      | HTTP port for the Express server                                        |
-| `DATABASE_PATH`        | `data/verification.db`      | SQLite database location (supports `:memory:`)                          |
+| `DATABASE_URL`         | `postgres://postgres:postgres@localhost:5432/verification_service` | PostgreSQL connection string |
+| `DATABASE_SSL`         | `0`                         | Optional SSL mode (`0`, `no-verify`, `require`)                          |
 | `HOSTNAME`             | `verification-service`      | Worker identifier used in responses                                     |
 | `SYNC_SECRET`          | _(unset)_                   | Optional shared secret required on `/internal/sync` requests            |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173`     | Comma-separated list of allowed browser origins (`*` permits all)       |
@@ -48,7 +49,9 @@ The service listens on port `3002` by default. Health check is available at `GET
 ```bash
 cd backend/verification-service
 docker build -t kube-credential/verification-service .
-docker run --rm -p 3002:3002 -v $(pwd)/data:/data kube-credential/verification-service
+docker run --rm -p 3002:3002 \
+	-e DATABASE_URL=postgres://postgres:postgres@host.docker.internal:5432/verification_service \
+	kube-credential/verification-service
 ```
 
 Ensure the issuance service is configured with the same `SYNC_SECRET` and points `VERIFICATION_SERVICE_URL` to this service for automatic synchronization.

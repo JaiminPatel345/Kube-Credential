@@ -1,16 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, jest } from '@jest/globals';
-import type DatabaseConstructor from 'better-sqlite3';
+import type { Pool } from 'pg';
 
 import type { performCatchUpSync as PerformCatchUpSyncFn } from '../src/utils/sync';
 import type { CredentialEntity } from '../src/models/credentialModel';
 import type { credentialModel as CredentialModel } from '../src/models/credentialModel';
 import type { generateIntegrityHash as GenerateIntegrityHashFn } from '../src/utils/hash';
 
-type BetterSqliteDatabase = DatabaseConstructor.Database;
-
 let initializeDatabase: () => Promise<void>;
 let closeDatabase: () => Promise<void>;
-let getDatabase: () => BetterSqliteDatabase;
+let getPool: () => Pool;
 let originalFetch: typeof global.fetch;
 let fetchMock: jest.MockedFunction<typeof fetch>;
 let performCatchUpSync: typeof PerformCatchUpSyncFn;
@@ -43,7 +41,7 @@ const buildRemoteCredential = (overrides?: Partial<CredentialEntity>): Credentia
 
 beforeAll(async () => {
   process.env.NODE_ENV = 'test';
-  process.env.DATABASE_PATH = ':memory:';
+  process.env.DATABASE_URL = 'memory://verification-sync-test';
   process.env.HOSTNAME = 'verification-sync-test';
   process.env.PORT = '0';
   process.env.SYNC_SECRET = 'top-secret';
@@ -58,7 +56,7 @@ beforeAll(async () => {
 
   initializeDatabase = databaseModule.initializeDatabase;
   closeDatabase = databaseModule.closeDatabase;
-  getDatabase = databaseModule.getDatabase;
+  getPool = databaseModule.getPool;
 
   await initializeDatabase();
 
@@ -72,9 +70,9 @@ afterAll(async () => {
   global.fetch = originalFetch;
 });
 
-beforeEach(() => {
-  const db = getDatabase();
-  db.prepare('DELETE FROM credentials').run();
+beforeEach(async () => {
+  const pool = getPool();
+  await pool.query('TRUNCATE TABLE credentials');
   fetchMock.mockReset();
 });
 
@@ -88,7 +86,7 @@ describe('performCatchUpSync', () => {
 
     expect(inserted).toBe(1);
 
-    const stored = credentialModel.findById(remoteCredential.id);
+    const stored = await credentialModel.findById(remoteCredential.id);
     expect(stored).toMatchObject({
       id: remoteCredential.id,
       issuedAt: remoteCredential.issuedAt
@@ -104,14 +102,14 @@ describe('performCatchUpSync', () => {
   });
 
   it('passes since parameter when local credentials exist', async () => {
-    const existing = buildRemoteCredential({ id: 'existing', issuedAt: '2024-04-01T00:00:00.000Z' });
-    credentialModel.upsert(existing);
+  const existing = buildRemoteCredential({ id: 'existing', issuedAt: '2024-04-01T00:00:00.000Z' });
+  await credentialModel.upsert(existing);
 
     const newer = buildRemoteCredential({ id: 'newer', issuedAt: '2024-05-01T00:00:00.000Z' });
 
     fetchMock.mockResolvedValue(buildJsonResponse({ success: true, count: 1, data: [newer] }));
 
-    const inserted = await performCatchUpSync();
+  const inserted = await performCatchUpSync();
 
     expect(inserted).toBe(1);
 

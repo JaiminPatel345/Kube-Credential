@@ -1,11 +1,10 @@
+import type { ConnectionOptions as TlsConnectionOptions } from 'tls';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
 
 dotenv.config();
 
 const DEFAULT_PORT = 3002;
-const DEFAULT_DB_RELATIVE = 'data/verification.db';
+const DEFAULT_DATABASE_URL = 'postgres://kube:kube@localhost:5432/verification_service';
 const DEFAULT_ISSUANCE_SERVICE_URL = 'http://localhost:3001';
 const DEFAULT_FRONTEND_URL = 'http://localhost:5173';
 const DEFAULT_ALLOWED_ORIGINS = [DEFAULT_FRONTEND_URL];
@@ -21,25 +20,42 @@ const parsePort = (value: string | undefined): number => {
   return parsed;
 };
 
-const resolveDatabasePath = (value: string | undefined): string => {
+const resolveDatabaseUrl = (value: string | undefined): string => {
   const trimmed = value?.trim();
 
-  if (!trimmed) {
-    const defaultPath = path.resolve(process.cwd(), DEFAULT_DB_RELATIVE);
-    fs.mkdirSync(path.dirname(defaultPath), { recursive: true });
-    return defaultPath;
-  }
-
-  if (trimmed === ':memory:' || trimmed.startsWith('file:')) {
+  if (trimmed) {
     return trimmed;
   }
 
-  const resolvedPath = path.isAbsolute(trimmed)
-    ? trimmed
-    : path.resolve(process.cwd(), trimmed);
+  const nodeEnv = process.env.NODE_ENV || 'development';
 
-  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
-  return resolvedPath;
+  if (nodeEnv === 'production') {
+    throw new Error('DATABASE_URL environment variable is required in production');
+  }
+
+  return DEFAULT_DATABASE_URL;
+};
+
+const parseDatabaseSsl = (value: string | undefined): boolean | TlsConnectionOptions => {
+  if (!value) {
+    return false;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (['require', 'strict', 'verify-full'].includes(normalized)) {
+    return { rejectUnauthorized: true };
+  }
+
+  if (['allow', 'prefer', 'no-verify', 'verify-ca'].includes(normalized)) {
+    return { rejectUnauthorized: false };
+  }
+
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return { rejectUnauthorized: false };
+  }
+
+  return false;
 };
 
 const workerId = process.env.HOSTNAME?.trim() || 'verification-service';
@@ -119,7 +135,8 @@ const corsAllowedOrigins = parseCorsOrigins(process.env.CORS_ALLOWED_ORIGINS, fr
 export const serviceConfig = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: parsePort(process.env.PORT),
-  databasePath: resolveDatabasePath(process.env.DATABASE_PATH),
+  databaseUrl: resolveDatabaseUrl(process.env.DATABASE_URL),
+  databaseSsl: parseDatabaseSsl(process.env.DATABASE_SSL),
   workerId,
   syncSecret,
   issuanceServiceUrl,

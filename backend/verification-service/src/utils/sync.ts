@@ -70,7 +70,7 @@ export const fetchCredentialsFromIssuance = async (since?: string): Promise<Cred
 };
 
 export const performCatchUpSync = async (): Promise<number> => {
-  const latestIssuedAt = credentialModel.getLatestIssuedAt();
+  const latestIssuedAt = await credentialModel.getLatestIssuedAt();
   const credentials = await fetchCredentialsFromIssuance(latestIssuedAt ?? undefined);
 
   if (credentials.length === 0) {
