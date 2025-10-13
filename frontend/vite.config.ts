@@ -10,10 +10,12 @@ export default defineConfig({
       },
     }),
   ],
-  preview: {
-    host: '0.0.0.0',
-    port: 5173,
-    strictPort: true,
+   preview: {
+    allowedHosts: [
+      'kube-credential-jaimin.eastus.azurecontainer.io',
+      'localhost',
+      '127.0.0.1'
+    ]
   },
   server: {
     host: '0.0.0.0',

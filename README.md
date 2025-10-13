@@ -9,7 +9,7 @@ backend/
 	issuance-service/     # Credential issuer (Node.js + TypeScript)
 	verification-service/ # Credential verifier (Node.js + TypeScript)
 docs/                   # API documentation and design notes
-frontend/               # React client (bootstrapped)
+frontend/               # React client
 ```
 
 ## 🛠 Tech Stack
