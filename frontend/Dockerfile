@@ -15,6 +15,15 @@ CMD ["yarn", "dev", "--host", "0.0.0.0"]
 
 # Stage 3: Build
 FROM node:20-alpine AS build
+
+# Build arguments for API URLs
+ARG VITE_ISSUANCE_API_URL
+ARG VITE_VERIFICATION_API_URL
+
+# Set as environment variables for Vite build
+ENV VITE_ISSUANCE_API_URL=$VITE_ISSUANCE_API_URL
+ENV VITE_VERIFICATION_API_URL=$VITE_VERIFICATION_API_URL
+
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .

@@ -63,8 +63,8 @@ jobs:
           target: production
           push: true
           build-args: |
-            VITE_ISSUANCE_API_URL=${{ secrets.AZURE_APP_URL }}/api/issuance
-            VITE_VERIFICATION_API_URL=${{ secrets.AZURE_APP_URL }}/api/verification
+            VITE_ISSUANCE_API_URL=http://${{ secrets.AZURE_DNS_NAME_LABEL }}.${{ secrets.AZURE_LOCATION }}.azurecontainer.io:3001
+            VITE_VERIFICATION_API_URL=http://${{ secrets.AZURE_DNS_NAME_LABEL }}.${{ secrets.AZURE_LOCATION }}.azurecontainer.io:3002
           tags: |
             ${{ env.REGISTRY_LOGIN_SERVER }}/frontend:latest
             ${{ env.REGISTRY_LOGIN_SERVER }}/frontend:${{ github.sha }}
@@ -118,9 +118,9 @@ jobs:
                   protocol: TCP
                 environmentVariables:
                 - name: VITE_ISSUANCE_API_URL
-                  value: ${{ secrets.AZURE_APP_URL }}/api/issuance
+                  value: http://${{ secrets.AZURE_DNS_NAME_LABEL }}.${{ secrets.AZURE_LOCATION }}.azurecontainer.io:3001
                 - name: VITE_VERIFICATION_API_URL
-                  value: ${{ secrets.AZURE_APP_URL }}/api/verification
+                  value: http://${{ secrets.AZURE_DNS_NAME_LABEL }}.${{ secrets.AZURE_LOCATION }}.azurecontainer.io:3002
             - name: issuance-service
               properties:
                 image: ${{ env.REGISTRY_LOGIN_SERVER }}/issuance-service:latest
