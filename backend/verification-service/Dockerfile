@@ -54,6 +54,8 @@ COPY --chown=node:node . .
 
 RUN mkdir -p /data && chown -R node:node /data
 
+RUN yarn install --force
+
 USER node
 RUN yarn build
 
@@ -74,7 +76,7 @@ RUN apt-get update && apt-get install -y \
     make \
     g++ \
     && yarn install --frozen-lockfile --production \
-    && yarn rebuild better-sqlite3 \
+    && yarn install --force \
     && apt-get remove -y python3 make g++ \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
