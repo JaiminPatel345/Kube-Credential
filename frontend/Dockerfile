@@ -26,7 +26,7 @@ ENV VITE_VERIFICATION_API_URL=$VITE_VERIFICATION_API_URL
 
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY --chown=node:node . .
 RUN yarn build
 
 # Stage 4: Production
