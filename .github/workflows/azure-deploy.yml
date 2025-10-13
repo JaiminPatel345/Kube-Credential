@@ -98,84 +98,113 @@ jobs:
             value: /data/credentials.db
           EOF
 
+      - name: Create YAML deployment file
+        run: |
+          cat > container-group.yaml <<EOF
+          apiVersion: 2021-03-01
+          location: ${{ secrets.AZURE_LOCATION }}
+          name: kube-credential-app
+          properties:
+            containers:
+            - name: frontend
+              properties:
+                image: ${{ env.REGISTRY_LOGIN_SERVER }}/frontend:latest
+                resources:
+                  requests:
+                    cpu: 0.5
+                    memoryInGb: 1
+                ports:
+                - port: 5173
+                  protocol: TCP
+                environmentVariables:
+                - name: VITE_ISSUANCE_API_URL
+                  value: ${{ secrets.AZURE_APP_URL }}/api/issuance
+                - name: VITE_VERIFICATION_API_URL
+                  value: ${{ secrets.AZURE_APP_URL }}/api/verification
+            - name: issuance-service
+              properties:
+                image: ${{ env.REGISTRY_LOGIN_SERVER }}/issuance-service:latest
+                resources:
+                  requests:
+                    cpu: 0.5
+                    memoryInGb: 1
+                ports:
+                - port: 3001
+                  protocol: TCP
+                environmentVariables:
+                - name: NODE_ENV
+                  value: production
+                - name: PORT
+                  value: '3001'
+                - name: DATABASE_PATH
+                  value: /data/credentials.db
+                - name: HOSTNAME
+                  value: issuance-service
+                - name: VERIFICATION_SERVICE_URL
+                  value: http://localhost:3002
+                - name: FRONTEND_URL
+                  value: ${{ secrets.AZURE_APP_URL }}
+                - name: SYNC_SECRET
+                  secureValue: ${{ secrets.SYNC_SECRET }}
+            - name: verification-service
+              properties:
+                image: ${{ env.REGISTRY_LOGIN_SERVER }}/verification-service:latest
+                resources:
+                  requests:
+                    cpu: 0.5
+                    memoryInGb: 1
+                ports:
+                - port: 3002
+                  protocol: TCP
+                environmentVariables:
+                - name: NODE_ENV
+                  value: production
+                - name: PORT
+                  value: '3002'
+                - name: DATABASE_PATH
+                  value: /data/verification.db
+                - name: HOSTNAME
+                  value: verification-service
+                - name: ISSUANCE_SERVICE_URL
+                  value: http://localhost:3001
+                - name: FRONTEND_URL
+                  value: ${{ secrets.AZURE_APP_URL }}
+                - name: SYNC_SECRET
+                  secureValue: ${{ secrets.SYNC_SECRET }}
+            imageRegistryCredentials:
+            - server: ${{ env.REGISTRY_LOGIN_SERVER }}
+              username: ${{ secrets.AZURE_ACR_USERNAME }}
+              password: ${{ secrets.AZURE_ACR_PASSWORD }}
+            restartPolicy: Always
+            osType: Linux
+            ipAddress:
+              type: Public
+              dnsNameLabel: ${{ secrets.AZURE_DNS_NAME_LABEL }}
+              ports:
+              - protocol: TCP
+                port: 5173
+              - protocol: TCP
+                port: 3001
+              - protocol: TCP
+                port: 3002
+          tags: null
+          type: Microsoft.ContainerInstance/containerGroups
+          EOF
+
       - name: Deploy Container Group
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            az container create \
+            # Delete existing container group if it exists
+            az container delete \
               --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
               --name kube-credential-app \
-              --registry-login-server ${{ env.REGISTRY_LOGIN_SERVER }} \
-              --registry-username ${{ secrets.AZURE_ACR_USERNAME }} \
-              --registry-password ${{ secrets.AZURE_ACR_PASSWORD }} \
-              --dns-name-label ${{ secrets.AZURE_DNS_NAME_LABEL }} \
-              --ports 80 443 \
-              --restart-policy Always \
-              --os-type Linux \
-              --location ${{ secrets.AZURE_LOCATION }} \
-              --image ${{ env.REGISTRY_LOGIN_SERVER }}/frontend:latest \
-              --cpu 0.5 \
-              --memory 1 \
-              --environment-variables \
-                VITE_ISSUANCE_API_URL=${{ secrets.AZURE_APP_URL }}/api/issuance \
-                VITE_VERIFICATION_API_URL=${{ secrets.AZURE_APP_URL }}/api/verification \
-              || az container restart --name kube-credential-app --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }}
-
-      - name: Deploy Issuance Service
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
+              --yes || true
+            
+            # Deploy new container group
             az container create \
               --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-              --name issuance-service \
-              --registry-login-server ${{ env.REGISTRY_LOGIN_SERVER }} \
-              --registry-username ${{ secrets.AZURE_ACR_USERNAME }} \
-              --registry-password ${{ secrets.AZURE_ACR_PASSWORD }} \
-              --image ${{ env.REGISTRY_LOGIN_SERVER }}/issuance-service:latest \
-              --cpu 0.5 \
-              --memory 1 \
-              --restart-policy Always \
-              --os-type Linux \
-              --location ${{ secrets.AZURE_LOCATION }} \
-              --ports 3001 \
-              --environment-variables \
-                NODE_ENV=production \
-                PORT=3001 \
-                DATABASE_PATH=/data/credentials.db \
-                HOSTNAME=issuance-service \
-                VERIFICATION_SERVICE_URL=http://verification-service:3002 \
-                FRONTEND_URL=${{ secrets.AZURE_APP_URL }} \
-              --secure-environment-variables \
-                SYNC_SECRET=${{ secrets.SYNC_SECRET }} \
-              || az container restart --name issuance-service --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }}
-
-      - name: Deploy Verification Service
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            az container create \
-              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-              --name verification-service \
-              --registry-login-server ${{ env.REGISTRY_LOGIN_SERVER }} \
-              --registry-username ${{ secrets.AZURE_ACR_USERNAME }} \
-              --registry-password ${{ secrets.AZURE_ACR_PASSWORD }} \
-              --image ${{ env.REGISTRY_LOGIN_SERVER }}/verification-service:latest \
-              --cpu 0.5 \
-              --memory 1 \
-              --restart-policy Always \
-              --os-type Linux \
-              --location ${{ secrets.AZURE_LOCATION }} \
-              --ports 3002 \
-              --environment-variables \
-                NODE_ENV=production \
-                PORT=3002 \
-                DATABASE_PATH=/data/verification.db \
-                HOSTNAME=verification-service \
-                ISSUANCE_SERVICE_URL=http://issuance-service:3001 \
-                FRONTEND_URL=${{ secrets.AZURE_APP_URL }} \
-              --secure-environment-variables \
-                SYNC_SECRET=${{ secrets.SYNC_SECRET }} \
-              || az container restart --name verification-service --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }}
+              --file container-group.yaml
 
       - name: Azure Logout
         if: always()

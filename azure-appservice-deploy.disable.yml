@@ -1,9 +1,7 @@
-name: Deploy to Azure App Service
+name: Deploy to Azure App Service (DISABLED)
 
+# Workflow disabled - using Container Instances instead (azure-deploy.yml)
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 env:
