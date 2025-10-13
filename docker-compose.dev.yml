@@ -16,8 +16,9 @@ services:
     volumes:
       - issuance-data:/data
       - ./backend/issuance-service:/app
-      - /app/node_modules
+      - issuance-node-modules:/app/node_modules  # Named volume instead of anonymous
     command: yarn dev
+    restart: unless-stopped
 
   verification-service:
     build:
@@ -36,8 +37,9 @@ services:
     volumes:
       - verification-data:/data
       - ./backend/verification-service:/app
-      - /app/node_modules
+      - verification-node-modules:/app/node_modules  # Named volume instead of anonymous
     command: yarn dev
+    restart: unless-stopped
     depends_on:
       issuance-service:
         condition: service_started
@@ -54,10 +56,11 @@ services:
       VITE_NODE_ENV: development
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      - frontend-node-modules:/app/node_modules  # Named volume instead of anonymous
     command: yarn dev --host 0.0.0.0 --port 5173
     stdin_open: true
     tty: true
+    restart: unless-stopped
     depends_on:
       - issuance-service
       - verification-service
@@ -65,3 +68,6 @@ services:
 volumes:
   issuance-data:
   verification-data:
+  issuance-node-modules:      # Persist compiled node_modules
+  verification-node-modules:  # Persist compiled node_modules
+  frontend-node-modules:      # Persist node_modules

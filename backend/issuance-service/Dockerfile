@@ -1,40 +1,91 @@
 # Stage 1: Dependencies
-FROM node:20-alpine AS deps
+FROM node:20-slim AS deps
+
+# Install build dependencies for better-sqlite3
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
 COPY package.json yarn.lock* ./
 RUN yarn install --frozen-lockfile
 
 # Stage 2: Development
-FROM node:20-alpine AS development
+FROM node:20-slim AS development
+
+# Install build dependencies for better-sqlite3
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY --chown=node:node . .
+
+# Rebuild better-sqlite3 for this environment
+RUN yarn install --force 
+
+RUN mkdir -p /data && chown -R node:node /data
+
 USER node
 EXPOSE 3001
 CMD ["yarn", "dev"]
 
 # Stage 3: Build
-FROM node:20-alpine AS build
+FROM node:20-slim AS build
+
+# Install build dependencies for better-sqlite3
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY --chown=node:node . .
+
+RUN mkdir -p /data && chown -R node:node /data
+
 USER node
 RUN yarn build
 
 # Stage 4: Production
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
+
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV DATABASE_PATH=/data/credentials.db
+
 WORKDIR /app
 
 COPY --chown=node:node package.json yarn.lock* ./
-RUN yarn install --frozen-lockfile --production
+
+# Install build dependencies temporarily for production rebuild
+RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
+    && yarn install --frozen-lockfile --production \
+    && yarn rebuild better-sqlite3 \
+    && apt-get remove -y python3 make g++ \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --chown=node:node --from=build /app/dist ./dist
 
-USER node
+# Create data directory with proper permissions
+RUN mkdir -p /data && chown node:node /data
 
+USER node
 EXPOSE 3001
 VOLUME ["/data"]
+
 CMD ["node", "dist/index.js"]
