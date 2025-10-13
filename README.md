@@ -4,8 +4,7 @@ Credential issuance and verification platform designed to run inside Kubernetes-
 
 ## Show Live Preview:
 ```
-http://kube-credential-jaimin.eastus.azurecontainer.io
-# or may be http://kube-credential-jaimin.eastus.azurecontainer.io:5173
+http://kube-credential-jaimin.eastus.azurecontainer.io:5173
 ```
 
 ## Project Layout
