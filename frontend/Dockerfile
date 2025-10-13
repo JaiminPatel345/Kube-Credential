@@ -1,7 +1,7 @@
 # Stage 1: Dependencies (shared)
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package.json yarn.lock ./
+COPY package.json yarn.lock vite.config.js ./
 RUN yarn install --frozen-lockfile
 
 # Stage 2: Development (with hot reload)
@@ -26,6 +26,7 @@ ENV VITE_VERIFICATION_API_URL=$VITE_VERIFICATION_API_URL
 
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/vite.config.js ./vite.config.js
 COPY --chown=node:node . .
 RUN yarn build
 
