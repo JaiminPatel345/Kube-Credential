@@ -36,4 +36,4 @@ COPY --from=build /app/dist ./dist
 EXPOSE 5173
 
 # Run preview server
-CMD ["yarn", "preview", "--host", "0.0.0.0", "--port", "${PORT:-5173}"]
+CMD ["yarn", "preview", "--host", "0.0.0.0", "--port", "5173"]
