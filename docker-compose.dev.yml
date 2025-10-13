@@ -13,14 +13,11 @@ services:
       VERIFICATION_SERVICE_URL: http://verification-service:3002
       SYNC_SECRET: ${SYNC_SECRET:-please_hire_me}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
-      npm_config_build_from_source: true
     volumes:
       - issuance-data:/data
       - ./backend/issuance-service:/app
       - /app/node_modules
     command: yarn dev
-    stdin_open: true
-    tty: true
 
   verification-service:
     build:
@@ -36,14 +33,11 @@ services:
       SYNC_SECRET: ${SYNC_SECRET:-please_hire_me}
       ISSUANCE_SERVICE_URL: http://issuance-service:3001
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
-      npm_config_build_from_source: true
     volumes:
       - verification-data:/data
       - ./backend/verification-service:/app
       - /app/node_modules
     command: yarn dev
-    stdin_open: true
-    tty: true
     depends_on:
       issuance-service:
         condition: service_started

@@ -21,8 +21,6 @@ type RequestState =
   | { status: 'success'; credential: IssuedCredential }
   | { status: 'error'; message: string };
 
-type DetailsMode = 'simple' | 'raw';
-
 const EMPTY_FORM: FormValues = {
   name: '',
   credentialType: '',
@@ -32,33 +30,6 @@ const EMPTY_FORM: FormValues = {
 const truncateHash = (hash: string) => `${hash.slice(0, 12)}…${hash.slice(-8)}`;
 
 const formatISODate = (iso: string) => new Date(iso).toLocaleString();
-
-const validateDetails = (details: string) => {
-  if (!details.trim()) {
-    return 'Details are required';
-  }
-
-  try {
-    const parsed = JSON.parse(details);
-    if (!parsed || typeof parsed !== 'object') {
-      return 'Details must be a JSON object';
-    }
-    
-    // Check that all values are non-null and non-empty
-    for (const [key, value] of Object.entries(parsed)) {
-      if (value === null || value === undefined || value === '') {
-        return `Detail value for "${key}" cannot be empty or null`;
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    if (error instanceof Error) {
-      return `Invalid JSON: ${error.message}`;
-    }
-    return 'Invalid JSON payload';
-  }
-};
 
 const createCredentialJson = (credential: IssuedCredential) =>
   JSON.stringify(credential, null, 2);
@@ -96,7 +67,6 @@ const IssuancePage = () => {
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<'simple' | 'raw'>('simple');
-  const [detailsMode, setDetailsMode] = useState<DetailsMode>('simple');
   const [keyValuePairs, setKeyValuePairs] = useState<Record<string, string>>({});
   const [rawJsonInput, setRawJsonInput] = useState('');
   const [editorKey, setEditorKey] = useState(0);
@@ -108,38 +78,6 @@ const IssuancePage = () => {
     setValues((prev) => ({ ...prev, [field]: event.target.value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
     setToastMessage(null);
-  };
-
-  const handleModeChange = (newMode: DetailsMode) => {
-    if (newMode === detailsMode) return;
-
-    if (newMode === 'raw') {
-      // Convert key-value pairs to JSON
-      const jsonString = JSON.stringify(keyValuePairs, null, 2);
-      setValues((prev) => ({ ...prev, details: jsonString }));
-      setDetailsMode('raw');
-    } else {
-      // Convert JSON to key-value pairs
-      try {
-        const parsed = JSON.parse(values.details);
-        if (parsed && typeof parsed === 'object') {
-          const pairs: Record<string, string> = {};
-          Object.entries(parsed).forEach(([key, value]) => {
-            pairs[key] = String(value);
-          });
-          setKeyValuePairs(pairs);
-          setDetailsMode('simple');
-          // Force remount of KeyValueEditor with new data
-          setEditorKey(prev => prev + 1);
-        }
-      } catch (error) {
-        // If JSON is invalid, switch anyway with empty pairs
-        setKeyValuePairs({});
-        setDetailsMode('simple');
-        setEditorKey(prev => prev + 1);
-      }
-    }
-    setErrors((prev) => ({ ...prev, details: undefined }));
   };
 
   const handleKeyValueChange = (pairs: Record<string, string>) => {
@@ -159,19 +97,11 @@ const IssuancePage = () => {
       validationErrors.credentialType = 'Credential type is required';
     }
     
-    // Validate details in both modes
-    if (detailsMode === 'simple') {
-      // Validate key-value pairs - check for empty values
-      for (const [key, value] of Object.entries(keyValuePairs)) {
-        if (key.trim() && (!value || value.trim() === '')) {
-          validationErrors.details = `Detail value for "${key}" cannot be empty`;
-          break;
-        }
-      }
-    } else {
-      const detailsError = validateDetails(formValues.details);
-      if (detailsError) {
-        validationErrors.details = detailsError;
+    // Validate key-value pairs - check for empty values
+    for (const [key, value] of Object.entries(keyValuePairs)) {
+      if (key.trim() && (!value || value.trim() === '')) {
+        validationErrors.details = `Detail value for "${key}" cannot be empty`;
+        break;
       }
     }
     return validationErrors;
@@ -411,27 +341,12 @@ const IssuancePage = () => {
                 </label>
               </div>
 
-              {detailsMode === 'simple' ? (
-                <KeyValueEditor
-                  key={`issuance-simple-form-${editorKey}`}
-                  initialPairs={keyValuePairs}
-                  onChange={handleKeyValueChange}
-                  disabled={isLoading}
-                />
-              ) : (
-                <JsonEditor
-                  value={values.details}
-                  onChange={(value) => {
-                    setValues((prev) => ({ ...prev, details: value }));
-                    setErrors((prev) => ({ ...prev, details: undefined }));
-                    setToastMessage(null);
-                  }}
-                  placeholder='{\n  "attribute": "value"\n}'
-                  disabled={isLoading}
-                  height="280px"
-                  showFormatButton={true}
-                />
-              )}
+              <KeyValueEditor
+                key={`issuance-simple-form-${editorKey}`}
+                initialPairs={keyValuePairs}
+                onChange={handleKeyValueChange}
+                disabled={isLoading}
+              />
               
               {errors.details ? <p className="text-sm text-red-600">{errors.details}</p> : null}
             </div>

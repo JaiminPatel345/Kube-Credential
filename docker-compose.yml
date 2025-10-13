@@ -15,9 +15,6 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
     volumes:
       - issuance-data:/data
-    depends_on:
-      verification-service:
-        condition: service_started
     restart: unless-stopped
 
   verification-service:
