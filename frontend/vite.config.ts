@@ -10,21 +10,13 @@ export default defineConfig({
     }),
   ],
   preview: {
-    host: '0.0.0.0',
+    host: true,
     port: 5173,
-    allowedHosts: [
-      'kube-credential-jaimin.eastus.azurecontainer.io',
-      'localhost',
-      '127.0.0.1'
-    ]
+    allowedHosts: true, // allow all hosts in preview
   },
   server: {
-    host: '0.0.0.0',
+    host: true,
     port: 5173,
-    allowedHosts:[
-      'kube-credential-jaimin.eastus.azurecontainer.io',
-      'localhost',
-      '127.0.0.1'
-    ]
+    allowedHosts: true, // allow all hosts in dev
   },
 })

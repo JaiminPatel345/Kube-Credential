@@ -41,6 +41,7 @@ RUN yarn install --frozen-lockfile --production
 
 # Copy built application
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/vite.config.js ./vite.config.js
 
 EXPOSE 5173
 
