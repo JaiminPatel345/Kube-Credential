@@ -2,6 +2,12 @@
 
 Credential issuance and verification platform designed to run inside Kubernetes-friendly environments. The repository now ships both the **Issuance Service** (credential creation) and the **Verification Service** (integrity checks and lookup).
 
+## Show Live Preview:
+```
+http://kube-credential-jaimin.eastus.azurecontainer.io
+# or may be http://kube-credential-jaimin.eastus.azurecontainer.io:5173
+```
+
 ## Project Layout
 
 ```
