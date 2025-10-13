@@ -1,5 +1,22 @@
 .idea
 .vscode
 .env
+.env.local
+.env.production
+.env.azure
 node_modules
 dist
+
+# Azure deployment files 
+azure-env.yaml
+azure-credentials.json
+github-secrets-*
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+*.log
+logs/

@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  issuance-service:
+    image: ${AZURE_CONTAINER_REGISTRY}.azurecr.io/issuance-service:latest
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_PATH: /data/credentials.db
+      HOSTNAME: issuance-service
+      VERIFICATION_SERVICE_URL: http://verification-service:3002
+      SYNC_SECRET: ${SYNC_SECRET}
+      FRONTEND_URL: ${AZURE_APP_URL}
+    volumes:
+      - issuance-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  verification-service:
+    image: ${AZURE_CONTAINER_REGISTRY}.azurecr.io/verification-service:latest
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      DATABASE_PATH: /data/verification.db
+      HOSTNAME: verification-service
+      SYNC_SECRET: ${SYNC_SECRET}
+      ISSUANCE_SERVICE_URL: http://issuance-service:3001
+      FRONTEND_URL: ${AZURE_APP_URL}
+    volumes:
+      - verification-data:/data
+    depends_on:
+      issuance-service:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3002/health', (r) => { process.exit(r.statusCode === 200 ? 0 : 1) })"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    image: ${AZURE_CONTAINER_REGISTRY}.azurecr.io/frontend:latest
+    ports:
+      - "80:5173"
+      - "443:5173"
+    environment:
+      VITE_ISSUANCE_API_URL: ${AZURE_APP_URL}/api/issuance
+      VITE_VERIFICATION_API_URL: ${AZURE_APP_URL}/api/verification
+    depends_on:
+      issuance-service:
+        condition: service_healthy
+      verification-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  issuance-data:
+    driver: azure_file
+    driver_opts:
+      share_name: issuance-data
+      storage_account_name: ${AZURE_STORAGE_ACCOUNT}
+  verification-data:
+    driver: azure_file
+    driver_opts:
+      share_name: verification-data
+      storage_account_name: ${AZURE_STORAGE_ACCOUNT}

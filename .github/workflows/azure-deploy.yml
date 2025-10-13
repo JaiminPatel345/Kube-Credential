@@ -1,0 +1,182 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY_NAME: ${{ secrets.AZURE_CONTAINER_REGISTRY }}
+  REGISTRY_LOGIN_SERVER: ${{ secrets.AZURE_CONTAINER_REGISTRY }}.azurecr.io
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.AZURE_ACR_USERNAME }}
+          password: ${{ secrets.AZURE_ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push issuance-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/issuance-service
+          file: ./backend/issuance-service/Dockerfile
+          target: production
+          push: true
+          tags: |
+            ${{ env.REGISTRY_LOGIN_SERVER }}/issuance-service:latest
+            ${{ env.REGISTRY_LOGIN_SERVER }}/issuance-service:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY_LOGIN_SERVER }}/issuance-service:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_LOGIN_SERVER }}/issuance-service:buildcache,mode=max
+
+      - name: Build and push verification-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend/verification-service
+          file: ./backend/verification-service/Dockerfile
+          target: production
+          push: true
+          tags: |
+            ${{ env.REGISTRY_LOGIN_SERVER }}/verification-service:latest
+            ${{ env.REGISTRY_LOGIN_SERVER }}/verification-service:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY_LOGIN_SERVER }}/verification-service:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_LOGIN_SERVER }}/verification-service:buildcache,mode=max
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          target: production
+          push: true
+          build-args: |
+            VITE_ISSUANCE_API_URL=${{ secrets.AZURE_APP_URL }}/api/issuance
+            VITE_VERIFICATION_API_URL=${{ secrets.AZURE_APP_URL }}/api/verification
+          tags: |
+            ${{ env.REGISTRY_LOGIN_SERVER }}/frontend:latest
+            ${{ env.REGISTRY_LOGIN_SERVER }}/frontend:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.REGISTRY_LOGIN_SERVER }}/frontend:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY_LOGIN_SERVER }}/frontend:buildcache,mode=max
+
+  deploy-to-azure:
+    name: Deploy to Azure Container Instances
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Create deployment environment variables file
+        run: |
+          cat > azure-env.yaml <<EOF
+          - name: NODE_ENV
+            value: production
+          - name: SYNC_SECRET
+            secureValue: ${{ secrets.SYNC_SECRET }}
+          - name: FRONTEND_URL
+            value: ${{ secrets.AZURE_APP_URL }}
+          - name: DATABASE_PATH
+            value: /data/credentials.db
+          EOF
+
+      - name: Deploy Container Group
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az container create \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name kube-credential-app \
+              --registry-login-server ${{ env.REGISTRY_LOGIN_SERVER }} \
+              --registry-username ${{ secrets.AZURE_ACR_USERNAME }} \
+              --registry-password ${{ secrets.AZURE_ACR_PASSWORD }} \
+              --dns-name-label ${{ secrets.AZURE_DNS_NAME_LABEL }} \
+              --ports 80 443 \
+              --restart-policy Always \
+              --os-type Linux \
+              --location ${{ secrets.AZURE_LOCATION }} \
+              --image ${{ env.REGISTRY_LOGIN_SERVER }}/frontend:latest \
+              --cpu 0.5 \
+              --memory 1 \
+              --environment-variables \
+                VITE_ISSUANCE_API_URL=${{ secrets.AZURE_APP_URL }}/api/issuance \
+                VITE_VERIFICATION_API_URL=${{ secrets.AZURE_APP_URL }}/api/verification \
+              || az container restart --name kube-credential-app --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+      - name: Deploy Issuance Service
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az container create \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name issuance-service \
+              --registry-login-server ${{ env.REGISTRY_LOGIN_SERVER }} \
+              --registry-username ${{ secrets.AZURE_ACR_USERNAME }} \
+              --registry-password ${{ secrets.AZURE_ACR_PASSWORD }} \
+              --image ${{ env.REGISTRY_LOGIN_SERVER }}/issuance-service:latest \
+              --cpu 0.5 \
+              --memory 1 \
+              --restart-policy Always \
+              --os-type Linux \
+              --location ${{ secrets.AZURE_LOCATION }} \
+              --ports 3001 \
+              --environment-variables \
+                NODE_ENV=production \
+                PORT=3001 \
+                DATABASE_PATH=/data/credentials.db \
+                HOSTNAME=issuance-service \
+                VERIFICATION_SERVICE_URL=http://verification-service:3002 \
+                FRONTEND_URL=${{ secrets.AZURE_APP_URL }} \
+              --secure-environment-variables \
+                SYNC_SECRET=${{ secrets.SYNC_SECRET }} \
+              || az container restart --name issuance-service --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+      - name: Deploy Verification Service
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az container create \
+              --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+              --name verification-service \
+              --registry-login-server ${{ env.REGISTRY_LOGIN_SERVER }} \
+              --registry-username ${{ secrets.AZURE_ACR_USERNAME }} \
+              --registry-password ${{ secrets.AZURE_ACR_PASSWORD }} \
+              --image ${{ env.REGISTRY_LOGIN_SERVER }}/verification-service:latest \
+              --cpu 0.5 \
+              --memory 1 \
+              --restart-policy Always \
+              --os-type Linux \
+              --location ${{ secrets.AZURE_LOCATION }} \
+              --ports 3002 \
+              --environment-variables \
+                NODE_ENV=production \
+                PORT=3002 \
+                DATABASE_PATH=/data/verification.db \
+                HOSTNAME=verification-service \
+                ISSUANCE_SERVICE_URL=http://issuance-service:3001 \
+                FRONTEND_URL=${{ secrets.AZURE_APP_URL }} \
+              --secure-environment-variables \
+                SYNC_SECRET=${{ secrets.SYNC_SECRET }} \
+              || az container restart --name verification-service --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }}
+
+      - name: Azure Logout
+        if: always()
+        run: az logout

@@ -133,10 +133,82 @@ docker compose up --build
 
 Environment variables such as `SYNC_SECRET` can be supplied via an `.env` file or inline when invoking Compose. Issuance service automatically targets the composed verification endpoint (`verification-service:3002`).
 
+## 🚀 Deployment
+
+### Azure Deployment with GitHub Actions
+
+This project includes automated CI/CD pipelines for deploying to Microsoft Azure using Docker containers.
+
+#### Quick Start
+
+1. **Run the automated setup script:**
+   ```bash
+   ./setup-azure.sh
+   ```
+
+2. **Add GitHub Secrets:**
+   - The script will generate a file with all required secrets
+   - Add each secret to: Repository → Settings → Secrets → Actions
+   - See [`GITHUB_SECRETS.md`](GITHUB_SECRETS.md) for quick reference
+
+3. **Deploy:**
+   - Push to `main` branch or manually trigger the workflow
+   - Your app will be deployed with a single public URL for frontend and backend
+
+#### Key Features
+
+✅ **Unified URL**: Frontend and backend accessible from same domain (no CORS issues)  
+✅ **Automated CI/CD**: Push to main triggers automatic deployment  
+✅ **Docker-based**: All services containerized for consistency  
+✅ **Persistent Storage**: Azure File Shares for database persistence  
+✅ **Environment Consistency**: Same URLs across all services  
+
+#### Documentation
+
+- 📘 [Complete Deployment Guide](DEPLOYMENT.md) - Step-by-step Azure setup
+- 🔑 [GitHub Secrets Reference](GITHUB_SECRETS.md) - Quick secrets guide
+- 🐳 [docker-compose.azure.yml](docker-compose.azure.yml) - Production compose file
+
+#### Deployment Options
+
+Two workflow files are provided:
+
+1. **Azure Container Instances** (`.github/workflows/azure-deploy.yml`)
+   - Simple, pay-per-second billing
+   - Ideal for development/staging
+
+2. **Azure App Service** (`.github/workflows/azure-appservice-deploy.yml`)
+   - Auto-scaling, load balancing
+   - Better for production
+
+Choose one by renaming or deleting the other workflow file.
+
+## Docker Compose
+
+### Local Development
+
+Spin up both services (and persistent SQLite volumes) using the bundled compose file:
+
+```bash
+docker compose up --build
+```
+
+### Azure Production
+
+For production deployment on Azure:
+
+```bash
+docker compose -f docker-compose.azure.yml up
+```
+
+Environment variables such as `SYNC_SECRET` can be supplied via an `.env` file or inline when invoking Compose. Issuance service automatically targets the composed verification endpoint (`verification-service:3002`).
+
 ## Roadmap
 
 - Wire services into the React frontend workflow
 - Add authentication/authorization around issuance & verification endpoints
-- Provide Helm charts / Kubernetes manifests for deployment
+- ~~Provide deployment automation~~ ✅ Azure CI/CD completed
+- Add monitoring and alerting
+- Implement backup strategies
 
 Contributions are welcome—open an issue or PR with ideas or improvements.
