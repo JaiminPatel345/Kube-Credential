@@ -50,13 +50,17 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --chown=node:node . .
+COPY . .
+
+# Change ownership of the entire /app directory to node user
+RUN chown -R node:node /app
 
 RUN mkdir -p /data && chown -R node:node /data
 
-RUN yarn install --force
-
+# Switch to node user BEFORE rebuild and build
 USER node
+
+RUN yarn install --force
 RUN yarn build
 
 # Stage 4: Production

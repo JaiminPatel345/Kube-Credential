@@ -14,9 +14,6 @@ jobs:
   build-and-push:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
-    permissions:
-          contents: write-all
-          packages: write-all
     
     steps:
       - name: Checkout code
