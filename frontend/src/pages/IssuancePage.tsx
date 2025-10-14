@@ -189,7 +189,28 @@ const IssuancePage = () => {
   const handleCopy = async () => {
     if (!issuedCredential) return;
     try {
-      await navigator.clipboard.writeText(createCredentialJson(issuedCredential));
+      const text = createCredentialJson(issuedCredential);
+      
+      // Try modern clipboard API first (requires HTTPS or localhost)
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for non-secure contexts (HTTP)
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+        } finally {
+          document.body.removeChild(textArea);
+        }
+      }
+      
       setRequestState({ status: 'success', credential: issuedCredential });
       setToastMessage(null);
     } catch (error) {
