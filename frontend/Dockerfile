@@ -30,21 +30,15 @@ COPY --chown=node:node . .
 RUN yarn build
 
 # Stage 4: Production
-FROM node:20-alpine AS production
-WORKDIR /app
+FROM nginx:alpine AS production
 
-# Copy package files
-COPY package.json yarn.lock ./
+# Copy built application from build stage
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Install only production dependencies
-RUN yarn install --frozen-lockfile --production
+# Copy custom nginx configuration 
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built application
-COPY --from=build /app/dist ./dist
+EXPOSE 80 5173
 
-RUN npm install -g serve
-
-EXPOSE 5173
-
-# Run preview server
-CMD ["serve", "-s", "dist", "-l", "5173", "-H"]
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]

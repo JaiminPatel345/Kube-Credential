@@ -43,6 +43,7 @@ services:
       context: ./frontend
       target: production
     ports:
+      - "80:80"
       - "5173:5173"
     environment:
       VITE_ISSUANCE_API_URL: ${ISSUANCE_API_URL:-http://localhost:3001}
