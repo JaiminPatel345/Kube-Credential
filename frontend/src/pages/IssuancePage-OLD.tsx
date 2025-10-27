@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { FormEvent } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
 import { issueCredential, parseAxiosError } from '../services/api';
 import type { IssuedCredential } from '../types/credential';
 import ErrorToast from '../components/ErrorToast';
@@ -8,6 +8,7 @@ import KeyValueEditor from '../components/KeyValueEditor';
 import ModeToggle from '../components/ModeToggle';
 import {
   validateIssuanceCredential,
+  parseAndValidateIssuanceJSON,
   normalizeIssuanceFormData,
   detailsToKeyValuePairs,
   type IssuanceCredentialData
@@ -60,6 +61,7 @@ const downloadCredential = (credential: IssuedCredential) => {
   const link = document.createElement('a');
   link.href = url;
   
+  // Create filename based on name and credential type
   const namePart = sanitizeFilename(credential.name);
   const typePart = sanitizeFilename(credential.credentialType);
   link.download = `credential-${namePart}-${typePart}.json`;
@@ -82,7 +84,7 @@ const IssuancePage = () => {
   const isLoading = requestState.status === 'loading';
   const issuedCredential = requestState.status === 'success' ? requestState.credential : null;
 
-  // Compute raw JSON from formData (always in sync)
+  // Compute raw JSON from formData for raw mode
   const rawJsonValue = useMemo(() => {
     const credentialData: IssuanceCredentialData = {
       name: formData.name,
@@ -92,7 +94,7 @@ const IssuancePage = () => {
     return JSON.stringify(credentialData, null, 2);
   }, [formData]);
 
-  const handleFieldChange = (field: 'name' | 'credentialType') => (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (field: keyof FormData) => (event: ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
     setToastMessage(null);
@@ -105,43 +107,89 @@ const IssuancePage = () => {
   };
 
   const handleRawJsonChange = (value: string) => {
-    // Parse and update formData from raw JSON (keeps data in sync)
-    try {
-      const parsed = JSON.parse(value);
+    // Parse and update formData from raw JSON
+    const parseResult = parseAndValidateIssuanceJSON(value);
+    
+    if (parseResult.valid && parseResult.data) {
       setFormData({
-        name: parsed.name || '',
-        credentialType: parsed.credentialType || '',
-        details: detailsToKeyValuePairs(parsed.details || {})
+        name: parseResult.data.name,
+        credentialType: parseResult.data.credentialType,
+        details: detailsToKeyValuePairs(parseResult.data.details)
       });
       setErrors({});
-    } catch {
-      // Invalid JSON - don't update state
+    } else {
+      // Store partial/invalid JSON - still update what we can parse
+      try {
+        const parsed = JSON.parse(value);
+        setFormData({
+          name: parsed.name || '',
+          credentialType: parsed.credentialType || '',
+          details: detailsToKeyValuePairs(parsed.details || {})
+        });
+      } catch {
+        // Invalid JSON - keep current state
+      }
     }
     setToastMessage(null);
-  };
-
-  const handleInputModeChange = (newMode: 'simple' | 'raw') => {
-    if (newMode === inputMode) return;
-    // No data conversion needed - both modes use same formData
-    setInputMode(newMode);
-    setErrors({});
-    setEditorKey(prev => prev + 1);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    // Use centralized validation (same for both modes)
-    const normalized = normalizeIssuanceFormData(formData);
-    const validation = validateIssuanceCredential(normalized);
+    let name: string;
+    let credentialType: string;
+    let detailsPayload: Record<string, unknown>;
 
-    if (!validation.valid) {
-      setErrors(validation.errors);
-      const errorMessages = Object.values(validation.errors);
-      if (errorMessages.length > 0) {
-        setToastMessage(errorMessages[0]);
+    if (inputMode === 'raw') {
+      // Parse from raw JSON
+      try {
+        const parsed = JSON.parse(rawJsonInput);
+        if (!parsed.name || !parsed.credentialType) {
+          setErrors({ details: 'JSON must include "name" and "credentialType" fields' });
+          setToastMessage('JSON must include "name" and "credentialType" fields');
+          return;
+        }
+        
+        // Validate details object using utility
+        if (parsed.details && typeof parsed.details === 'object') {
+          const detailsValidation = validateDetails(parsed.details);
+          if (!detailsValidation.valid && detailsValidation.errors.length > 0) {
+            const errorMsg = detailsValidation.errors[0];
+            setErrors({ details: errorMsg });
+            setToastMessage(errorMsg);
+            return;
+          }
+        }
+        
+        name = parsed.name;
+        credentialType = parsed.credentialType;
+        detailsPayload = parsed.details || {};
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid JSON';
+        setErrors({ details: `Invalid JSON: ${message}` });
+        setToastMessage(`Invalid JSON: ${message}`);
+        return;
       }
-      return;
+    } else {
+      // Validate simple form
+      const validationErrors = validate(values);
+      if (Object.keys(validationErrors).length > 0) {
+        setErrors(validationErrors);
+        setRequestState({ status: 'idle' });
+        return;
+      }
+
+      try {
+        detailsPayload = JSON.parse(values.details);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid JSON';
+        setErrors((prev) => ({ ...prev, details: `Invalid JSON: ${message}` }));
+        setRequestState({ status: 'idle' });
+        return;
+      }
+
+      name = values.name.trim();
+      credentialType = values.credentialType.trim();
     }
 
     setToastMessage(null);
@@ -149,9 +197,9 @@ const IssuancePage = () => {
 
     try {
       const response = await issueCredential({
-        name: normalized.name,
-        credentialType: normalized.credentialType,
-        details: normalized.details
+        name,
+        credentialType,
+        details: detailsPayload
       });
 
       setRequestState({ status: 'success', credential: response.credential });
@@ -168,9 +216,11 @@ const IssuancePage = () => {
     try {
       const text = createCredentialJson(issuedCredential);
       
+      // Try modern clipboard API first (requires HTTPS or localhost)
       if (navigator.clipboard && navigator.clipboard.writeText) {
         await navigator.clipboard.writeText(text);
       } else {
+        // Fallback for non-secure contexts (HTTP)
         const textArea = document.createElement('textarea');
         textArea.value = text;
         textArea.style.position = 'fixed';
@@ -210,9 +260,44 @@ const IssuancePage = () => {
     return null;
   }, [requestState]);
 
+  const handleInputModeChange = (newMode: 'simple' | 'raw') => {
+    if (newMode === inputMode) return;
+
+    if (newMode === 'raw') {
+      // Convert simple form to JSON
+      const credential = {
+        name: values.name,
+        credentialType: values.credentialType,
+        details: keyValuePairs
+      };
+      setRawJsonInput(JSON.stringify(credential, null, 2));
+      setInputMode('raw');
+    } else {
+      // Convert JSON to simple form
+      try {
+        const parsed = JSON.parse(rawJsonInput);
+        setValues({
+          name: parsed.name || '',
+          credentialType: parsed.credentialType || '',
+          details: JSON.stringify(parsed.details || {}, null, 2)
+        });
+        setKeyValuePairs(parsed.details || {});
+        setInputMode('simple');
+        setEditorKey(prev => prev + 1);
+      } catch (error) {
+        // If JSON is invalid, switch anyway with empty values
+        setInputMode('simple');
+        setEditorKey(prev => prev + 1);
+      }
+    }
+    setErrors({});
+  };
+
   const handleIssueAnother = () => {
     setRequestState({ status: 'idle' });
-    setFormData(EMPTY_FORM);
+    setValues({ name: '', credentialType: '', details: '{}' });
+    setKeyValuePairs({});
+    setRawJsonInput('');
     setErrors({});
     setToastMessage(null);
     setEditorKey(prev => prev + 1);
@@ -243,7 +328,7 @@ const IssuancePage = () => {
       {/* Show form only when not loading and no credential issued */}
       {!isLoading && !issuedCredential && (
         <div className="grid gap-6 lg:grid-cols-1">
-        <section className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200 mx-auto w-full max-w-3xl sm:p-6">
+        <section className={`rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200 sm:p-6 ${!issuedCredential ? 'mx-auto w-full max-w-3xl' : ''}`}>
           <form className="space-y-4 sm:space-y-5" onSubmit={handleSubmit} noValidate>
             {/* Mode Toggle */}
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
@@ -268,8 +353,8 @@ const IssuancePage = () => {
                 autoComplete="name"
                 placeholder="Jaimin Detroja"
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60 sm:px-4 sm:py-3 sm:text-base"
-                value={formData.name}
-                onChange={handleFieldChange('name')}
+                value={values.name}
+                onChange={handleChange('name')}
                 disabled={isLoading}
                 required
               />
@@ -286,8 +371,8 @@ const IssuancePage = () => {
                 type="text"
                 placeholder="Kube Cluster Admin"
                 className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60 sm:px-4 sm:py-3 sm:text-base"
-                value={formData.credentialType}
-                onChange={handleFieldChange('credentialType')}
+                value={values.credentialType}
+                onChange={handleChange('credentialType')}
                 disabled={isLoading}
                 required
               />
@@ -303,7 +388,7 @@ const IssuancePage = () => {
 
               <KeyValueEditor
                 key={`issuance-simple-form-${editorKey}`}
-                initialPairs={formData.details}
+                initialPairs={keyValuePairs}
                 onChange={handleKeyValueChange}
                 disabled={isLoading}
               />
@@ -317,8 +402,12 @@ const IssuancePage = () => {
                   Raw JSON Payload
                 </label>
                 <JsonEditor
-                  value={rawJsonValue}
-                  onChange={handleRawJsonChange}
+                  value={rawJsonInput}
+                  onChange={(value) => {
+                    setRawJsonInput(value);
+                    setErrors({});
+                    setToastMessage(null);
+                  }}
                   placeholder='{\n  "name": "John Doe",\n  "credentialType": "Degree",\n  "details": {\n    "course": "Computer Science"\n  }\n}'
                   disabled={isLoading}
                   height="300px"

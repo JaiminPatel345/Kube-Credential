@@ -1,23 +1,11 @@
 import { z } from 'zod';
+import { createDetailsSchema, createRequiredStringSchema } from './validationHelpers';
 
-const detailsSchema = z
-  .record(z.string(), z.any())
-  .superRefine((details, ctx) => {
-    // Check each value in the details object
-    for (const [key, value] of Object.entries(details)) {
-      if (value === null || value === undefined || value === '') {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Detail value for "${key}" cannot be empty, null, or undefined`,
-          path: [key]
-        });
-      }
-    }
-  });
+const detailsSchema = createDetailsSchema();
 
 export const IssueCredentialSchema = z.object({
-  name: z.string().trim().min(1).max(255),
-  credentialType: z.string().trim().min(1).max(255),
+  name: createRequiredStringSchema('Name', 255),
+  credentialType: createRequiredStringSchema('Credential Type', 255),
   details: detailsSchema
 });
 

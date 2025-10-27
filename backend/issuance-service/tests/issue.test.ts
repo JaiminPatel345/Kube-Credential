@@ -166,8 +166,91 @@ describe('POST /api/issue', () => {
       .expect(400);
 
     expect(response2.body.success).toBe(false);
-    expect(response2.body.message).toContain('cannot be empty');
+    expect(response2.body.message).toContain('cannot be null or undefined');
     expect(Array.isArray(response2.body.errors)).toBe(true);
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects credentials with empty or whitespace-only keys in details', async () => {
+    const payloadWithEmptyKey = {
+      name: 'Test User',
+      credentialType: 'test-credential',
+      details: {
+        "": "value1",
+        "key2": "value2"
+      }
+    };
+
+    const response = await request(app)
+      .post('/api/issue')
+      .send(payloadWithEmptyKey)
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('Detail keys cannot be empty');
+    expect(Array.isArray(response.body.errors)).toBe(true);
+
+    const payloadWithWhitespaceKey = {
+      name: 'Test User',
+      credentialType: 'test-credential',
+      details: {
+        "   ": "value1",
+        "key2": "value2"
+      }
+    };
+
+    const response2 = await request(app)
+      .post('/api/issue')
+      .send(payloadWithWhitespaceKey)
+      .expect(400);
+
+    expect(response2.body.success).toBe(false);
+    expect(response2.body.message).toContain('Detail keys cannot be empty');
+    expect(Array.isArray(response2.body.errors)).toBe(true);
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects credentials with value but empty key in details', async () => {
+    const payloadWithValueButEmptyKey = {
+      name: 'Test User',
+      credentialType: 'test-credential',
+      details: {
+        "": "some value"
+      }
+    };
+
+    const response = await request(app)
+      .post('/api/issue')
+      .send(payloadWithValueButEmptyKey)
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('Detail keys cannot be empty');
+    expect(Array.isArray(response.body.errors)).toBe(true);
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it('rejects credentials with whitespace-only values in details', async () => {
+    const payloadWithWhitespaceValue = {
+      name: 'Test User',
+      credentialType: 'test-credential',
+      details: {
+        "key1": "   ",
+        "key2": "value2"
+      }
+    };
+
+    const response = await request(app)
+      .post('/api/issue')
+      .send(payloadWithWhitespaceValue)
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('cannot be only whitespace');
+    expect(Array.isArray(response.body.errors)).toBe(true);
 
     expect(mockFetch).not.toHaveBeenCalled();
   });
