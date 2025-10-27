@@ -13,7 +13,7 @@ import {
   detailsToKeyValuePairs,
   type VerificationCredentialData
 } from '../services/validationService';
-import { detectDuplicateKeysInArray, removeDuplicateKeys } from '../utils/validation';
+import { detectDuplicateKeysInArray, detectDuplicateKeysInRawJson, removeDuplicateKeys } from '../utils/validation';
 
 type FormData = {
   id: string;
@@ -62,6 +62,9 @@ const VerificationPage = () => {
   const [editorKey, setEditorKey] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
+  // Store raw JSON separately for raw mode (to avoid cursor jumps)
+  const [rawJsonInput, setRawJsonInput] = useState('');
+  
   // Store raw pairs array from KeyValueEditor for duplicate detection
   const [detailsPairsArray, setDetailsPairsArray] = useState<Array<{ key: string; value: string }>>([]);
   
@@ -75,8 +78,14 @@ const VerificationPage = () => {
   const verificationResult = requestState.status === 'success' ? requestState.payload : null;
   const verifiedCredential = requestState.status === 'success' ? requestState.credential : null;
 
-  // Compute raw JSON from formData (always in sync)
+  // Compute raw JSON from formData (for simple mode or when syncing)
   const rawJsonValue = useMemo(() => {
+    // In raw mode, use the rawJsonInput directly (don't sync from formData)
+    if (inputMode === 'raw') {
+      return rawJsonInput;
+    }
+    
+    // In simple mode, compute from formData
     const credentialData: VerificationCredentialData = {
       id: formData.id,
       name: formData.name,
@@ -87,7 +96,7 @@ const VerificationPage = () => {
       details: formData.details
     };
     return JSON.stringify(credentialData, null, 2);
-  }, [formData]);
+  }, [formData, inputMode, rawJsonInput]);
 
   const handleFieldChange = (field: keyof FormData) => (event: ChangeEvent<HTMLInputElement>) => {
     if (field === 'details') return; // Details handled separately
@@ -109,31 +118,39 @@ const VerificationPage = () => {
   };
 
   const handleRawJsonChange = (value: string) => {
-    // Parse and update formData from raw JSON (keeps data in sync)
-    try {
-      const parsed = JSON.parse(value);
-      setFormData({
-        id: parsed.id || '',
-        name: parsed.name || '',
-        credentialType: parsed.credentialType || '',
-        issuedBy: parsed.issuedBy || '',
-        issuedAt: parsed.issuedAt || '',
-        hash: parsed.hash || '',
-        details: detailsToKeyValuePairs(parsed.details || {})
-      });
-      setErrors({});
-      setShowValidationErrors(false);
-    } catch {
-      // Invalid JSON - don't update state
-    }
+    // In raw mode, just store the raw JSON without parsing
+    // We'll parse it when switching modes or submitting
+    setRawJsonInput(value);
+    setErrors({});
+    setShowValidationErrors(false);
     setToastMessage(null);
   };
 
   const handleInputModeChange = (newMode: 'simple' | 'raw') => {
     if (newMode === inputMode) return;
     
-    // Check for duplicate keys before switching mode (only in simple mode)
-    if (inputMode === 'simple') {
+    // If switching FROM raw TO simple, parse the JSON first
+    if (inputMode === 'raw' && newMode === 'simple') {
+      try {
+        const parsed = JSON.parse(rawJsonInput);
+        setFormData({
+          id: parsed.id || '',
+          name: parsed.name || '',
+          credentialType: parsed.credentialType || '',
+          issuedBy: parsed.issuedBy || '',
+          issuedAt: parsed.issuedAt || '',
+          hash: parsed.hash || '',
+          details: detailsToKeyValuePairs(parsed.details || {})
+        });
+      } catch (error) {
+        setToastMessage('Invalid JSON. Please fix syntax errors before switching to Simple mode.');
+        return;
+      }
+    }
+    
+    // If switching FROM simple TO raw, sync rawJsonInput from formData
+    if (inputMode === 'simple' && newMode === 'raw') {
+      // Check for duplicate keys before switching mode
       const duplicateCheck = detectDuplicateKeysInArray(detailsPairsArray);
       if (duplicateCheck.hasDuplicates) {
         // Build warning message
@@ -149,9 +166,21 @@ const VerificationPage = () => {
         setShowDuplicateDialog(true);
         return;
       }
+      
+      // Sync to rawJsonInput
+      const credentialData: VerificationCredentialData = {
+        id: formData.id,
+        name: formData.name,
+        credentialType: formData.credentialType,
+        issuedBy: formData.issuedBy,
+        issuedAt: formData.issuedAt,
+        hash: formData.hash,
+        details: formData.details
+      };
+      setRawJsonInput(JSON.stringify(credentialData, null, 2));
     }
     
-    // No data conversion needed - both modes use same formData
+    // Switch mode
     setInputMode(newMode);
     setErrors({});
     setShowValidationErrors(false);
@@ -165,6 +194,21 @@ const VerificationPage = () => {
       // Remove duplicates and switch mode
       const cleaned = removeDuplicateKeys(formData.details);
       setFormData(prev => ({ ...prev, details: cleaned }));
+      
+      // Sync to rawJsonInput if going to raw mode
+      if (pendingMode === 'raw') {
+        const credentialData: VerificationCredentialData = {
+          id: formData.id,
+          name: formData.name,
+          credentialType: formData.credentialType,
+          issuedBy: formData.issuedBy,
+          issuedAt: formData.issuedAt,
+          hash: formData.hash,
+          details: cleaned
+        };
+        setRawJsonInput(JSON.stringify(credentialData, null, 2));
+      }
+      
       setInputMode(pendingMode);
       setErrors({});
       setShowValidationErrors(false);
@@ -197,7 +241,7 @@ const VerificationPage = () => {
       const text = await file.text();
       const parsed = JSON.parse(text);
       
-      setFormData({
+      const parsedFormData = {
         id: parsed.id || '',
         name: parsed.name || '',
         credentialType: parsed.credentialType || '',
@@ -205,7 +249,14 @@ const VerificationPage = () => {
         issuedAt: parsed.issuedAt || '',
         hash: parsed.hash || '',
         details: detailsToKeyValuePairs(parsed.details || {})
-      });
+      };
+      
+      setFormData(parsedFormData);
+      
+      // Also update rawJsonInput if in raw mode
+      if (inputMode === 'raw') {
+        setRawJsonInput(JSON.stringify(parsed, null, 2));
+      }
       
       setErrors({});
       setShowValidationErrors(false);
@@ -220,9 +271,10 @@ const VerificationPage = () => {
   };
 
   // Helper function to submit form with specific details
-  const submitFormWithData = async (details: Record<string, string>) => {
+  const submitFormWithData = async (details: Record<string, string>, overrideData?: Partial<FormData>) => {
     // Use centralized validation (same for both modes)
-    const normalized = normalizeVerificationFormData({ ...formData, details });
+    const dataToSubmit = overrideData ? { ...formData, ...overrideData, details } : { ...formData, details };
+    const normalized = normalizeVerificationFormData(dataToSubmit);
     const validation = validateVerificationCredential(normalized);
 
     if (!validation.valid) {
@@ -274,9 +326,10 @@ const VerificationPage = () => {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     
-    // Check for duplicate keys before submission (only in simple mode)
-    if (inputMode === 'simple') {
-      const duplicateCheck = detectDuplicateKeysInArray(detailsPairsArray);
+    // If in raw mode, parse JSON first
+    if (inputMode === 'raw') {
+      // Check for duplicate keys in raw JSON BEFORE parsing
+      const duplicateCheck = detectDuplicateKeysInRawJson(rawJsonInput);
       if (duplicateCheck.hasDuplicates) {
         // Build warning message
         const messages = duplicateCheck.duplicates.map(dup => {
@@ -286,10 +339,76 @@ const VerificationPage = () => {
         setDuplicateWarningMessage(
           `Duplicate keys detected in details:\n\n${messages.join('\n')}\n\nOnly the last value for each key will be kept. Continue with verification?`
         );
+        
+        // Try to parse for later submission
+        try {
+          const parsed = JSON.parse(rawJsonInput);
+          setFormData({
+            id: parsed.id || '',
+            name: parsed.name || '',
+            credentialType: parsed.credentialType || '',
+            issuedBy: parsed.issuedBy || '',
+            issuedAt: parsed.issuedAt || '',
+            hash: parsed.hash || '',
+            details: parsed.details || {}
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Invalid JSON';
+          setToastMessage(`JSON Parse Error: ${message}`);
+          setErrors({ details: 'Invalid JSON format' });
+          return;
+        }
+        
         setPendingAction('submit');
         setShowDuplicateDialog(true);
         return;
       }
+      
+      // No duplicates, parse and submit
+      try {
+        const parsed = JSON.parse(rawJsonInput);
+        const parsedData = {
+          id: parsed.id || '',
+          name: parsed.name || '',
+          credentialType: parsed.credentialType || '',
+          issuedBy: parsed.issuedBy || '',
+          issuedAt: parsed.issuedAt || '',
+          hash: parsed.hash || '',
+          details: parsed.details || {}
+        };
+        
+        // Submit with parsed data
+        await submitFormWithData(parsedData.details, {
+          id: parsedData.id,
+          name: parsedData.name,
+          credentialType: parsedData.credentialType,
+          issuedBy: parsedData.issuedBy,
+          issuedAt: parsedData.issuedAt,
+          hash: parsedData.hash
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid JSON';
+        setToastMessage(`JSON Parse Error: ${message}`);
+        setErrors({ details: 'Invalid JSON format' });
+        return;
+      }
+      return;
+    }
+    
+    // In simple mode, check for duplicate keys before submission
+    const duplicateCheck = detectDuplicateKeysInArray(detailsPairsArray);
+    if (duplicateCheck.hasDuplicates) {
+      // Build warning message
+      const messages = duplicateCheck.duplicates.map(dup => {
+        return `• Key "${dup.key}" conflicts with ${dup.values.join(', ')}`;
+      });
+      
+      setDuplicateWarningMessage(
+        `Duplicate keys detected in details:\n\n${messages.join('\n')}\n\nOnly the last value for each key will be kept. Continue with verification?`
+      );
+      setPendingAction('submit');
+      setShowDuplicateDialog(true);
+      return;
     }
 
     // Submit with current formData.details
@@ -302,6 +421,24 @@ const VerificationPage = () => {
 
   const handleClear = () => {
     setFormData(EMPTY_FORM);
+    
+    // Reset raw JSON input based on current mode
+    if (inputMode === 'raw') {
+      // In raw mode, set to empty JSON structure
+      const emptyCredential: VerificationCredentialData = {
+        id: '',
+        name: '',
+        credentialType: '',
+        issuedBy: '',
+        issuedAt: '',
+        hash: '',
+        details: {}
+      };
+      setRawJsonInput(JSON.stringify(emptyCredential, null, 2));
+    } else {
+      setRawJsonInput('');
+    }
+    
     setErrors({});
     setShowValidationErrors(false);
     setToastMessage(null);
@@ -311,6 +448,24 @@ const VerificationPage = () => {
   const handleVerifyAnother = () => {
     setRequestState({ status: 'idle' });
     setFormData(EMPTY_FORM);
+    
+    // Reset raw JSON input based on current mode
+    if (inputMode === 'raw') {
+      // In raw mode, set to empty JSON structure
+      const emptyCredential: VerificationCredentialData = {
+        id: '',
+        name: '',
+        credentialType: '',
+        issuedBy: '',
+        issuedAt: '',
+        hash: '',
+        details: {}
+      };
+      setRawJsonInput(JSON.stringify(emptyCredential, null, 2));
+    } else {
+      setRawJsonInput('');
+    }
+    
     setErrors({});
     setShowValidationErrors(false);
     setToastMessage(null);

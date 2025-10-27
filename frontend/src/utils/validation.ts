@@ -85,6 +85,64 @@ export const validateDetails = (
 };
 
 /**
+ * Detects duplicate keys in a raw JSON string BEFORE JavaScript parses it
+ * This is the only way to detect duplicates in JSON since JSON.parse() silently merges them
+ */
+export const detectDuplicateKeysInRawJson = (
+  jsonString: string
+): { hasDuplicates: boolean; duplicates: Array<{ key: string; values: string[] }> } => {
+  try {
+    // Use a regex to extract all key-value pairs from the details object
+    // This regex matches "key": "value" or "key": value patterns
+    const detailsMatch = jsonString.match(/"details"\s*:\s*\{([^}]*)\}/s);
+    if (!detailsMatch) {
+      return { hasDuplicates: false, duplicates: [] };
+    }
+    
+    const detailsContent = detailsMatch[1];
+    
+    // Extract all keys from the details object
+    // Match patterns like "key": with optional whitespace
+    const keyMatches = detailsContent.matchAll(/"([^"]+)"\s*:/g);
+    const keys: string[] = [];
+    
+    for (const match of keyMatches) {
+      keys.push(match[1]);
+    }
+    
+    // Group keys by normalized version (case-insensitive, trimmed)
+    const keyGroups = new Map<string, string[]>();
+    keys.forEach(key => {
+      const normalizedKey = key.trim().toLowerCase();
+      if (!keyGroups.has(normalizedKey)) {
+        keyGroups.set(normalizedKey, []);
+      }
+      keyGroups.get(normalizedKey)!.push(key);
+    });
+    
+    // Find duplicates
+    const duplicates: Array<{ key: string; values: string[] }> = [];
+    keyGroups.forEach((group) => {
+      if (group.length > 1) {
+        // Use the last key (which JavaScript will keep)
+        const lastKey = group[group.length - 1];
+        duplicates.push({
+          key: lastKey,
+          values: group.slice(0, -1).map(k => `"${k}"`)
+        });
+      }
+    });
+    
+    return {
+      hasDuplicates: duplicates.length > 0,
+      duplicates
+    };
+  } catch {
+    return { hasDuplicates: false, duplicates: [] };
+  }
+};
+
+/**
  * Detects duplicate keys in an array of key-value pairs (before they become a JS object)
  */
 export const detectDuplicateKeysInArray = (
