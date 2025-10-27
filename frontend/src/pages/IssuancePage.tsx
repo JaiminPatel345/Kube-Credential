@@ -6,12 +6,14 @@ import ErrorToast from '../components/ErrorToast';
 import JsonEditor from '../components/JsonEditor';
 import KeyValueEditor from '../components/KeyValueEditor';
 import ModeToggle from '../components/ModeToggle';
+import ConfirmDialog from '../components/ConfirmDialog';
 import {
   validateIssuanceCredential,
   normalizeIssuanceFormData,
   detailsToKeyValuePairs,
   type IssuanceCredentialData
 } from '../services/validationService';
+import { detectDuplicateKeysInArray, removeDuplicateKeys } from '../utils/validation';
 
 type FormData = {
   name: string;
@@ -79,6 +81,15 @@ const IssuancePage = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<'simple' | 'raw'>('simple');
   const [editorKey, setEditorKey] = useState(0);
+  
+  // Store raw pairs array from KeyValueEditor for duplicate detection
+  const [detailsPairsArray, setDetailsPairsArray] = useState<Array<{ key: string; value: string }>>([]);
+  
+  // Duplicate key warning state
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicateWarningMessage, setDuplicateWarningMessage] = useState('');
+  const [pendingAction, setPendingAction] = useState<'submit' | 'modeSwitch' | null>(null);
+  const [pendingMode, setPendingMode] = useState<'simple' | 'raw' | null>(null);
 
   const isLoading = requestState.status === 'loading';
   const issuedCredential = requestState.status === 'success' ? requestState.credential : null;
@@ -106,6 +117,10 @@ const IssuancePage = () => {
     setShowValidationErrors(false);
     setToastMessage(null);
   };
+  
+  const handleKeyValuePairsChange = (pairs: Array<{ key: string; value: string }>) => {
+    setDetailsPairsArray(pairs);
+  };
 
   const handleRawJsonChange = (value: string) => {
     // Parse and update formData from raw JSON (keeps data in sync)
@@ -126,23 +141,73 @@ const IssuancePage = () => {
 
   const handleInputModeChange = (newMode: 'simple' | 'raw') => {
     if (newMode === inputMode) return;
+    
+    // Check for duplicate keys before switching mode (only in simple mode)
+    if (inputMode === 'simple') {
+      const duplicateCheck = detectDuplicateKeysInArray(detailsPairsArray);
+      if (duplicateCheck.hasDuplicates) {
+        // Build warning message
+        const messages = duplicateCheck.duplicates.map(dup => {
+          return `• Key "${dup.key}" conflicts with ${dup.values.join(', ')}`;
+        });
+        
+        setDuplicateWarningMessage(
+          `Duplicate keys detected in details:\n\n${messages.join('\n')}\n\nOnly the last value for each key will be kept. Continue?`
+        );
+        setPendingMode(newMode);
+        setPendingAction('modeSwitch');
+        setShowDuplicateDialog(true);
+        return;
+      }
+    }
+    
     // No data conversion needed - both modes use same formData
     setInputMode(newMode);
     setErrors({});
     setShowValidationErrors(false);
     setEditorKey(prev => prev + 1);
   };
+  
+  const handleDuplicateConfirm = () => {
+    setShowDuplicateDialog(false);
+    
+    if (pendingAction === 'modeSwitch' && pendingMode) {
+      // Remove duplicates and switch mode
+      const cleaned = removeDuplicateKeys(formData.details);
+      setFormData(prev => ({ ...prev, details: cleaned }));
+      setInputMode(pendingMode);
+      setErrors({});
+      setShowValidationErrors(false);
+      setEditorKey(prev => prev + 1);
+      setPendingAction(null);
+      setPendingMode(null);
+    } else if (pendingAction === 'submit') {
+      // Remove duplicates and proceed with submission directly
+      const cleaned = removeDuplicateKeys(formData.details);
+      
+      // Perform submission directly instead of clicking submit button
+      submitFormWithData(cleaned);
+      
+      setPendingAction(null);
+      setPendingMode(null);
+    }
+  };
+  
+  const handleDuplicateCancel = () => {
+    setShowDuplicateDialog(false);
+    setPendingAction(null);
+    setPendingMode(null);
+  };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  // Helper function to submit form with specific details
+  const submitFormWithData = async (details: Record<string, string>) => {
     // Use centralized validation (same for both modes)
-    const normalized = normalizeIssuanceFormData(formData);
+    const normalized = normalizeIssuanceFormData({ ...formData, details });
     const validation = validateIssuanceCredential(normalized);
 
     if (!validation.valid) {
       setErrors(validation.errors);
-      setShowValidationErrors(true); // Show errors after submit
+      setShowValidationErrors(true);
       const errorMessages = Object.values(validation.errors);
       if (errorMessages.length > 0) {
         setToastMessage(errorMessages[0]);
@@ -168,6 +233,31 @@ const IssuancePage = () => {
       setRequestState({ status: 'error', message: parsed.message });
       setToastMessage(parsed.message);
     }
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    
+    // Check for duplicate keys before submission (only in simple mode)
+    if (inputMode === 'simple') {
+      const duplicateCheck = detectDuplicateKeysInArray(detailsPairsArray);
+      if (duplicateCheck.hasDuplicates) {
+        // Build warning message
+        const messages = duplicateCheck.duplicates.map(dup => {
+          return `• Key "${dup.key}" conflicts with ${dup.values.join(', ')}`;
+        });
+        
+        setDuplicateWarningMessage(
+          `Duplicate keys detected in details:\n\n${messages.join('\n')}\n\nOnly the last value for each key will be kept. Continue with submission?`
+        );
+        setPendingAction('submit');
+        setShowDuplicateDialog(true);
+        return;
+      }
+    }
+
+    // Submit with current formData.details
+    await submitFormWithData(formData.details);
   };
 
   const handleCopy = async () => {
@@ -229,6 +319,16 @@ const IssuancePage = () => {
   return (
     <>
       <ErrorToast message={toastMessage} onClose={handleToastClose} />
+      <ConfirmDialog
+        isOpen={showDuplicateDialog}
+        title="Duplicate Keys Detected"
+        message={duplicateWarningMessage}
+        variant="warning"
+        confirmText="Continue"
+        cancelText="Cancel"
+        onConfirm={handleDuplicateConfirm}
+        onCancel={handleDuplicateCancel}
+      />
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:py-8 md:px-6 lg:px-8">
       <header className="flex flex-col gap-2 text-center md:text-left">
         <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl md:text-4xl">Issue a New Credential</h1>
@@ -313,6 +413,7 @@ const IssuancePage = () => {
                 key={`issuance-simple-form-${editorKey}`}
                 initialPairs={formData.details}
                 onChange={handleKeyValueChange}
+                onPairsChange={handleKeyValuePairsChange}
                 disabled={isLoading}
                 showErrors={showValidationErrors}
               />

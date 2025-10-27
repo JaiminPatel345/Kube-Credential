@@ -44,6 +44,17 @@ export const validateDetails = (
   }
 
   const entries = Object.entries(details);
+  
+  // Check for duplicate keys (case-insensitive and trimmed)
+  const seenKeys = new Map<string, string>(); // normalized key -> original key
+  entries.forEach(([key]) => {
+    const normalizedKey = key.trim().toLowerCase();
+    if (seenKeys.has(normalizedKey)) {
+      errors.push(`Duplicate key detected: "${key}" (conflicts with "${seenKeys.get(normalizedKey)}")`);
+    } else {
+      seenKeys.set(normalizedKey, key);
+    }
+  });
 
   entries.forEach(([key, value]) => {
     if (!isValidKeyValuePair(key, value)) {
@@ -71,6 +82,108 @@ export const validateDetails = (
     valid: errors.length === 0,
     errors
   };
+};
+
+/**
+ * Detects duplicate keys in an array of key-value pairs (before they become a JS object)
+ */
+export const detectDuplicateKeysInArray = (
+  pairs: Array<{ key: string; value: string }>
+): { hasDuplicates: boolean; duplicates: Array<{ key: string; values: string[] }> } => {
+  const keyGroups = new Map<string, Array<{ originalKey: string; value: string }>>();
+  
+  // Group keys by normalized version
+  pairs.forEach(({ key, value }) => {
+    if (!key.trim()) return; // Skip empty keys
+    
+    const normalizedKey = key.trim().toLowerCase();
+    if (!keyGroups.has(normalizedKey)) {
+      keyGroups.set(normalizedKey, []);
+    }
+    keyGroups.get(normalizedKey)!.push({ originalKey: key, value });
+  });
+  
+  // Find duplicates
+  const duplicates: Array<{ key: string; values: string[] }> = [];
+  keyGroups.forEach((group) => {
+    if (group.length > 1) {
+      // Use the last key (which will be kept)
+      const lastEntry = group[group.length - 1];
+      duplicates.push({
+        key: lastEntry.originalKey,
+        values: group.map(g => `"${g.originalKey}": "${g.value}"`).slice(0, -1) // Exclude the last one
+      });
+    }
+  });
+  
+  return {
+    hasDuplicates: duplicates.length > 0,
+    duplicates
+  };
+};
+
+/**
+ * Detects duplicate keys in details object and returns information about them
+ */
+export const detectDuplicateKeys = (
+  details: Record<string, string>
+): { hasDuplicates: boolean; duplicates: Array<{ key: string; values: string[] }> } => {
+  const entries = Object.entries(details);
+  const keyGroups = new Map<string, Array<{ originalKey: string; value: string }>>();
+  
+  // Group keys by normalized version
+  entries.forEach(([key, value]) => {
+    const normalizedKey = key.trim().toLowerCase();
+    if (!keyGroups.has(normalizedKey)) {
+      keyGroups.set(normalizedKey, []);
+    }
+    keyGroups.get(normalizedKey)!.push({ originalKey: key, value });
+  });
+  
+  // Find duplicates
+  const duplicates: Array<{ key: string; values: string[] }> = [];
+  keyGroups.forEach((group) => {
+    if (group.length > 1) {
+      // Use the last key (which will be kept)
+      const lastEntry = group[group.length - 1];
+      duplicates.push({
+        key: lastEntry.originalKey,
+        values: group.map(g => `"${g.originalKey}": "${g.value}"`).slice(0, -1) // Exclude the last one
+      });
+    }
+  });
+  
+  return {
+    hasDuplicates: duplicates.length > 0,
+    duplicates
+  };
+};
+
+/**
+ * Removes duplicate keys keeping only the last occurrence (case-insensitive)
+ */
+export const removeDuplicateKeys = (
+  details: Record<string, string>
+): Record<string, string> => {
+  const result: Record<string, string> = {};
+  const normalizedToOriginal = new Map<string, string>();
+  
+  // Process entries in order, each new duplicate will override the previous
+  Object.entries(details).forEach(([key, value]) => {
+    const normalizedKey = key.trim().toLowerCase();
+    
+    // If we've seen this normalized key before, remove the old entry
+    if (normalizedToOriginal.has(normalizedKey)) {
+      const oldKey = normalizedToOriginal.get(normalizedKey)!;
+      delete result[oldKey];
+    }
+    
+    // Add/update with current key
+    result[key] = value;
+    normalizedToOriginal.set(normalizedKey, key);
+  });
+  
+  return result;
 };
 
 /**

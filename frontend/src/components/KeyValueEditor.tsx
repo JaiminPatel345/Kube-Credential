@@ -10,13 +10,14 @@ type KeyValuePair = {
 type KeyValueEditorProps = {
   initialPairs?: Record<string, string>;
   onChange: (pairs: Record<string, string>) => void;
+  onPairsChange?: (pairs: Array<{ key: string; value: string }>) => void; // Expose raw pairs for duplicate detection
   disabled?: boolean;
   showErrors?: boolean; // Only show errors when this is true (after submit)
 };
 
 const generateId = () => `kvp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false, showErrors = false }: KeyValueEditorProps) => {
+const KeyValueEditor = ({ initialPairs = {}, onChange, onPairsChange, disabled = false, showErrors = false }: KeyValueEditorProps) => {
   const [pairs, setPairs] = useState<KeyValuePair[]>(() => {
     const entries = Object.entries(initialPairs);
     if (entries.length === 0) {
@@ -69,6 +70,14 @@ const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false, showErr
       }
     });
     onChange(record);
+    
+    // Also notify with raw pairs array for duplicate detection
+    if (onPairsChange) {
+      const rawPairs = updatedPairs
+        .map(pair => ({ key: pair.key, value: pair.value }))
+        .filter(pair => pair.key.trim() || pair.value.trim()); // Only pairs with content
+      onPairsChange(rawPairs);
+    }
   };
 
   const handleKeyChange = (id: string, newKey: string) => {

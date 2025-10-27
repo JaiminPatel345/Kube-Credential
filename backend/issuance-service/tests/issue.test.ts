@@ -255,6 +255,29 @@ describe('POST /api/issue', () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it('rejects credentials with duplicate keys in details (case-insensitive)', async () => {
+    const payloadWithDuplicateKeys = {
+      name: 'Test User',
+      credentialType: 'test-credential',
+      details: {
+        "role": "admin",
+        "Role": "user",
+        "department": "IT"
+      }
+    };
+
+    const response = await request(app)
+      .post('/api/issue')
+      .send(payloadWithDuplicateKeys)
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('Duplicate key detected');
+    expect(Array.isArray(response.body.errors)).toBe(true);
+
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it('retries sync before logging failure but still responds with success', async () => {
     const payload = {
       name: 'Charlie Day',

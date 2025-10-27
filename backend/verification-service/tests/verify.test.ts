@@ -132,6 +132,30 @@ describe('POST /api/verify', () => {
       verifiedBy: 'worker-verification-test'
     });
   });
+
+  it('returns validation error when credential has duplicate keys in details', async () => {
+    const credentialWithDuplicateKeys = {
+      id: 'cred-2',
+      name: 'Test User',
+      credentialType: 'test-credential',
+      details: {
+        "role": "admin",
+        "Role": "user",
+        "department": "IT"
+      },
+      issuedBy: 'worker-issuer-1',
+      issuedAt: '2024-01-01T12:00:00.000Z',
+      hash: '0'.repeat(64)
+    };
+
+    const response = await request(app)
+      .post('/api/verify')
+      .send(credentialWithDuplicateKeys)
+      .expect(400);
+
+    expect(response.body.success).toBe(false);
+    expect(response.body.message).toContain('Duplicate key detected');
+  });
 });
 
 describe('POST /internal/sync', () => {

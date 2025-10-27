@@ -32,6 +32,7 @@ export const isValidKeyValuePair = (key: unknown, value: unknown): boolean => {
 /**
  * Creates a Zod schema for validating details object
  * Ensures all keys are non-empty strings and all values are non-null/non-empty
+ * Also checks for duplicate keys
  */
 export const createDetailsSchema = () => {
   return z
@@ -41,6 +42,21 @@ export const createDetailsSchema = () => {
     })
     .superRefine((details, ctx) => {
       const entries = Object.entries(details ?? {});
+      
+      // Check for duplicate keys (case-insensitive and trimmed)
+      const seenKeys = new Map<string, string>(); // normalized key -> original key
+      entries.forEach(([rawKey]) => {
+        const normalizedKey = rawKey.trim().toLowerCase();
+        if (seenKeys.has(normalizedKey)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Duplicate key detected: "${rawKey}" (conflicts with "${seenKeys.get(normalizedKey)}")`,
+            path: ['details', rawKey]
+          });
+        } else {
+          seenKeys.set(normalizedKey, rawKey);
+        }
+      });
 
       entries.forEach(([rawKey, rawValue]) => {
         // Validate key is not empty
@@ -138,6 +154,17 @@ export const validateDetails = (
   }
 
   const entries = Object.entries(details);
+  
+  // Check for duplicate keys (case-insensitive and trimmed)
+  const seenKeys = new Map<string, string>(); // normalized key -> original key
+  entries.forEach(([key]) => {
+    const normalizedKey = key.trim().toLowerCase();
+    if (seenKeys.has(normalizedKey)) {
+      errors.push(`Duplicate key detected: "${key}" (conflicts with "${seenKeys.get(normalizedKey)}")`);
+    } else {
+      seenKeys.set(normalizedKey, key);
+    }
+  });
 
   entries.forEach(([key, value]) => {
     if (!isValidKeyValuePair(key, value)) {
