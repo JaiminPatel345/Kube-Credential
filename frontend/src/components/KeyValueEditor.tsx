@@ -11,11 +11,12 @@ type KeyValueEditorProps = {
   initialPairs?: Record<string, string>;
   onChange: (pairs: Record<string, string>) => void;
   disabled?: boolean;
+  showErrors?: boolean; // Only show errors when this is true (after submit)
 };
 
 const generateId = () => `kvp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false }: KeyValueEditorProps) => {
+const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false, showErrors = false }: KeyValueEditorProps) => {
   const [pairs, setPairs] = useState<KeyValuePair[]>(() => {
     const entries = Object.entries(initialPairs);
     if (entries.length === 0) {
@@ -31,10 +32,7 @@ const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false }: KeyVa
     }));
   });
 
-  // We don't need useEffect that reacts to initialPairs changes
-  // The component manages its own state, and initialPairs is only used for initial setup
-  // If external updates are needed (like file parse), use a key prop to remount the component
-
+ 
   const validatePairs = (updatedPairs: KeyValuePair[]): KeyValuePair[] => {
     return updatedPairs.map((pair) => {
       const trimmedKey = pair.key.trim();
@@ -119,7 +117,7 @@ const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false }: KeyVa
                 onChange={(e) => handleKeyChange(pair.id, e.target.value)}
                 disabled={disabled}
                 className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
-                  pair.error
+                  showErrors && pair.error
                     ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
                     : 'border-slate-300 focus:border-brand focus:ring-brand/40'
                 }`}
@@ -133,7 +131,7 @@ const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false }: KeyVa
                 onChange={(e) => handleValueChange(pair.id, e.target.value)}
                 disabled={disabled}
                 className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:cursor-not-allowed disabled:opacity-60 ${
-                  pair.error
+                  showErrors && pair.error
                     ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
                     : 'border-slate-300 focus:border-brand focus:ring-brand/40'
                 }`}
@@ -151,7 +149,7 @@ const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false }: KeyVa
               </button>
             </div>
           </div>
-          {pair.error && (
+          {showErrors && pair.error && (
             <p className="text-xs text-rose-600 px-1">{pair.error}</p>
           )}
         </div>

@@ -53,6 +53,7 @@ const VerificationPage = () => {
   // Single source of truth for form data
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<ValidationErrors>({});
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<'simple' | 'raw'>('simple');
@@ -81,12 +82,14 @@ const VerificationPage = () => {
     if (field === 'details') return; // Details handled separately
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
+    setShowValidationErrors(false);
     setToastMessage(null);
   };
 
   const handleDetailsChange = (pairs: Record<string, string>) => {
     setFormData((prev) => ({ ...prev, details: pairs }));
     setErrors((prev) => ({ ...prev, details: undefined }));
+    setShowValidationErrors(false);
     setToastMessage(null);
   };
 
@@ -104,6 +107,7 @@ const VerificationPage = () => {
         details: detailsToKeyValuePairs(parsed.details || {})
       });
       setErrors({});
+      setShowValidationErrors(false);
     } catch {
       // Invalid JSON - don't update state
     }
@@ -115,6 +119,7 @@ const VerificationPage = () => {
     // No data conversion needed - both modes use same formData
     setInputMode(newMode);
     setErrors({});
+    setShowValidationErrors(false);
     setEditorKey(prev => prev + 1);
   };
 
@@ -137,6 +142,7 @@ const VerificationPage = () => {
       });
       
       setErrors({});
+      setShowValidationErrors(false);
       setToastMessage(null);
       setEditorKey(prev => prev + 1);
     } catch (error) {
@@ -156,6 +162,7 @@ const VerificationPage = () => {
 
     if (!validation.valid) {
       setErrors(validation.errors);
+      setShowValidationErrors(true); // Show errors after submit
       const errorMessages = Object.values(validation.errors);
       if (errorMessages.length > 0) {
         setToastMessage(errorMessages[0]);
@@ -163,6 +170,7 @@ const VerificationPage = () => {
       return;
     }
 
+    setShowValidationErrors(false);
     setToastMessage(null);
     setRequestState({ status: 'loading' });
 
@@ -205,6 +213,7 @@ const VerificationPage = () => {
   const handleClear = () => {
     setFormData(EMPTY_FORM);
     setErrors({});
+    setShowValidationErrors(false);
     setToastMessage(null);
     setEditorKey(prev => prev + 1);
   };
@@ -213,6 +222,7 @@ const VerificationPage = () => {
     setRequestState({ status: 'idle' });
     setFormData(EMPTY_FORM);
     setErrors({});
+    setShowValidationErrors(false);
     setToastMessage(null);
     setEditorKey(prev => prev + 1);
   };
@@ -427,6 +437,7 @@ const VerificationPage = () => {
                         initialPairs={formData.details}
                         onChange={handleDetailsChange}
                         disabled={isLoading}
+                        showErrors={showValidationErrors}
                       />
                       {errors.details ? <p className="text-sm text-red-600">{errors.details}</p> : null}
                     </div>

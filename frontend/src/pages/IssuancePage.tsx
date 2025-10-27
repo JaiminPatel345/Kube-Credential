@@ -74,6 +74,7 @@ const IssuancePage = () => {
   // Single source of truth for form data
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
   const [errors, setErrors] = useState<ValidationErrors>({});
+  const [showValidationErrors, setShowValidationErrors] = useState(false);
   const [requestState, setRequestState] = useState<RequestState>({ status: 'idle' });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<'simple' | 'raw'>('simple');
@@ -95,12 +96,14 @@ const IssuancePage = () => {
   const handleFieldChange = (field: 'name' | 'credentialType') => (event: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [field]: event.target.value }));
     setErrors((prev) => ({ ...prev, [field]: undefined }));
+    setShowValidationErrors(false);
     setToastMessage(null);
   };
 
   const handleKeyValueChange = (pairs: Record<string, string>) => {
     setFormData((prev) => ({ ...prev, details: pairs }));
     setErrors((prev) => ({ ...prev, details: undefined }));
+    setShowValidationErrors(false);
     setToastMessage(null);
   };
 
@@ -114,6 +117,7 @@ const IssuancePage = () => {
         details: detailsToKeyValuePairs(parsed.details || {})
       });
       setErrors({});
+      setShowValidationErrors(false);
     } catch {
       // Invalid JSON - don't update state
     }
@@ -125,6 +129,7 @@ const IssuancePage = () => {
     // No data conversion needed - both modes use same formData
     setInputMode(newMode);
     setErrors({});
+    setShowValidationErrors(false);
     setEditorKey(prev => prev + 1);
   };
 
@@ -137,6 +142,7 @@ const IssuancePage = () => {
 
     if (!validation.valid) {
       setErrors(validation.errors);
+      setShowValidationErrors(true); // Show errors after submit
       const errorMessages = Object.values(validation.errors);
       if (errorMessages.length > 0) {
         setToastMessage(errorMessages[0]);
@@ -144,6 +150,7 @@ const IssuancePage = () => {
       return;
     }
 
+    setShowValidationErrors(false);
     setToastMessage(null);
     setRequestState({ status: 'loading' });
 
@@ -214,6 +221,7 @@ const IssuancePage = () => {
     setRequestState({ status: 'idle' });
     setFormData(EMPTY_FORM);
     setErrors({});
+    setShowValidationErrors(false);
     setToastMessage(null);
     setEditorKey(prev => prev + 1);
   };
@@ -306,6 +314,7 @@ const IssuancePage = () => {
                 initialPairs={formData.details}
                 onChange={handleKeyValueChange}
                 disabled={isLoading}
+                showErrors={showValidationErrors}
               />
               
               {errors.details ? <p className="text-sm text-red-600">{errors.details}</p> : null}
