@@ -78,7 +78,7 @@ const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false }: KeyVa
   return (
     <div className="space-y-3">
       {pairs.map((pair) => (
-        <div key={pair.id} className="flex gap-2">
+        <div key={pair.id} className="flex flex-col gap-2 sm:flex-row">
           <div className="flex-1">
             <input
               type="text"
@@ -89,7 +89,7 @@ const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false }: KeyVa
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
           </div>
-          <div className="flex-1">
+          <div className="flex flex-1 gap-2">
             <input
               type="text"
               placeholder="Value"
@@ -98,18 +98,18 @@ const KeyValueEditor = ({ initialPairs = {}, onChange, disabled = false }: KeyVa
               disabled={disabled}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:cursor-not-allowed disabled:opacity-60"
             />
+            <button
+              type="button"
+              onClick={() => handleRemovePair(pair.id)}
+              disabled={disabled || pairs.length <= 1}
+              className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
+              title={pairs.length <= 1 ? 'At least one field is required' : 'Remove field'}
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => handleRemovePair(pair.id)}
-            disabled={disabled || pairs.length <= 1}
-            className="inline-flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 disabled:cursor-not-allowed disabled:opacity-40"
-            title={pairs.length <= 1 ? 'At least one field is required' : 'Remove field'}
-          >
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
       ))}
       

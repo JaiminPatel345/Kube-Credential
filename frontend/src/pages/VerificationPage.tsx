@@ -481,11 +481,11 @@ const VerificationPage = () => {
   return (
     <>
       <ErrorToast message={toastMessage} onClose={handleToastClose} />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 md:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:py-8 md:px-6 lg:px-8">
       <header className="flex flex-col gap-2 text-center md:text-left">
-        <p className="text-sm font-semibold uppercase tracking-widest text-brand-light">Kube Credential</p>
-        <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">Verify an Issued Credential</h1>
-        <p className="text-base text-slate-600">
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-light sm:text-sm">Kube Credential</p>
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl md:text-4xl">Verify an Issued Credential</h1>
+        <p className="text-sm text-slate-600 sm:text-base">
           Paste the signed credential payload below or import the JSON file exported from the issuance service.
           We&apos;ll validate the hash and metadata against the verification ledger.
         </p>
@@ -504,8 +504,8 @@ const VerificationPage = () => {
       {/* Show form only when not loading and no result */}
       {!isLoading && !verificationResult && !verifiedCredential && (
         <div className="grid gap-6 lg:grid-cols-1">
-          <section className="rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200 mx-auto w-full max-w-3xl">
-          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+          <section className="rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200 mx-auto w-full max-w-3xl sm:p-6">
+          <form className="space-y-4 sm:space-y-5" onSubmit={handleSubmit} noValidate>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-slate-900">Credential Input</h2>
               <ModeToggle
@@ -516,7 +516,7 @@ const VerificationPage = () => {
             </div>
 
             {inputMode === 'simple' ? (
-              <div className="space-y-5">
+              <div className="space-y-4 sm:space-y-5">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700" htmlFor="simple-id">
                     Credential ID
@@ -528,7 +528,7 @@ const VerificationPage = () => {
                     value={simpleFormData.id}
                     onChange={handleSimpleFormChange('id')}
                     disabled={isLoading}
-                    className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                    className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
                       simpleErrors.id
                         ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
                         : 'border-slate-300 focus:border-brand focus:ring-brand/40'
@@ -537,7 +537,7 @@ const VerificationPage = () => {
                   {simpleErrors.id ? <p className="text-xs text-rose-600">{simpleErrors.id}</p> : null}
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-700" htmlFor="simple-name">
                       Name
@@ -545,11 +545,11 @@ const VerificationPage = () => {
                     <input
                       id="simple-name"
                       type="text"
-                      placeholder="John Doe"
+                      placeholder="Jaimin Detroja"
                       value={simpleFormData.name}
                       onChange={handleSimpleFormChange('name')}
                       disabled={isLoading}
-                      className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                      className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
                         simpleErrors.name
                           ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
                           : 'border-slate-300 focus:border-brand focus:ring-brand/40'
@@ -569,7 +569,7 @@ const VerificationPage = () => {
                       value={simpleFormData.credentialType}
                       onChange={handleSimpleFormChange('credentialType')}
                       disabled={isLoading}
-                      className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                      className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
                         simpleErrors.credentialType
                           ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
                           : 'border-slate-300 focus:border-brand focus:ring-brand/40'
@@ -581,7 +581,7 @@ const VerificationPage = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-slate-700" htmlFor="simple-issued-by">
                       Issued By
@@ -593,7 +593,7 @@ const VerificationPage = () => {
                       value={simpleFormData.issuedBy}
                       onChange={handleSimpleFormChange('issuedBy')}
                       disabled={isLoading}
-                      className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                      className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
                         simpleErrors.issuedBy
                           ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
                           : 'border-slate-300 focus:border-brand focus:ring-brand/40'
@@ -615,7 +615,7 @@ const VerificationPage = () => {
                       value={simpleFormData.issuedAt}
                       onChange={handleSimpleFormChange('issuedAt')}
                       disabled={isLoading}
-                      className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                      className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
                         simpleErrors.issuedAt
                           ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
                           : 'border-slate-300 focus:border-brand focus:ring-brand/40'
@@ -636,7 +636,7 @@ const VerificationPage = () => {
                     value={simpleFormData.hash}
                     onChange={handleSimpleFormChange('hash')}
                     disabled={isLoading}
-                    className={`w-full rounded-lg border bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
+                    className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:ring-2 disabled:opacity-60 ${
                       simpleErrors.hash
                         ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200'
                         : 'border-slate-300 focus:border-brand focus:ring-brand/40'
@@ -667,10 +667,10 @@ const VerificationPage = () => {
                   onChange={handleJsonChange}
                   placeholder={EMPTY_EXAMPLE}
                   disabled={isLoading}
-                  height="400px"
+                  height="300px"
                   showFormatButton={true}
                 />
-                {validation.message ? <p className="text-sm text-red-600">{validation.message}</p> : null}
+                {validation.message ? <p className="text-xs text-red-600 sm:text-sm">{validation.message}</p> : null}
               </div>
             )}
 
@@ -703,7 +703,7 @@ const VerificationPage = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-base font-semibold tracking-wide text-white shadow-lg shadow-emerald-600/30 transition hover:from-emerald-700 hover:to-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-semibold tracking-wide text-white shadow-lg shadow-emerald-600/30 transition hover:from-emerald-700 hover:to-teal-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 sm:px-6 sm:py-3 sm:text-base"
               >
                 {isLoading ? (
                   <span className="inline-flex items-center gap-2">
@@ -741,37 +741,37 @@ const VerificationPage = () => {
 
       {/* Show results when verification is done */}
       {(verificationResult || verifiedCredential) && (
-        <section className="mx-auto w-full max-w-4xl rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200">
-          <div className="flex flex-col gap-5">
+        <section className="mx-auto w-full max-w-4xl rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200 sm:p-6">
+          <div className="flex flex-col gap-4 sm:gap-5">
             {renderStatusBadge()}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
                 <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued By</dt>
-                <dd className="text-sm font-semibold text-slate-900">
+                <dd className="text-xs font-semibold text-slate-900 sm:text-sm">
                   {verificationResult?.issuedBy ?? 'Unknown'}
                 </dd>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
                 <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued At</dt>
-                <dd className="text-sm font-semibold text-slate-900">
+                <dd className="text-xs font-semibold text-slate-900 sm:text-sm">
                   {verificationResult?.issuedAt ? new Date(verificationResult.issuedAt).toLocaleString() : 'Unknown'}
                 </dd>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
                 <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Verified By</dt>
-                <dd className="text-sm font-semibold text-slate-900">
+                <dd className="text-xs font-semibold text-slate-900 sm:text-sm">
                   {verificationResult?.verifiedBy ?? 'Unknown'}
                 </dd>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+              <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
                 <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Credential Type</dt>
-                <dd className="text-sm font-semibold text-slate-900">{verifiedCredential?.credentialType ?? 'Unknown'}</dd>
+                <dd className="text-xs font-semibold text-slate-900 sm:text-sm">{verifiedCredential?.credentialType ?? 'Unknown'}</dd>
               </div>
             </div>
 
             <div className="space-y-3">
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-slate-900 sm:text-sm">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
@@ -780,26 +780,26 @@ const VerificationPage = () => {
                 {verifiedCredential?.details && typeof verifiedCredential.details === 'object' && Object.keys(verifiedCredential.details).length > 0 ? (
                   <ul className="space-y-2">
                     {Object.entries(verifiedCredential.details).map(([key, value]) => (
-                      <li key={key} className="flex items-start gap-2 text-sm">
+                      <li key={key} className="flex items-start gap-2 text-xs sm:text-sm">
                         <span className="text-slate-400">•</span>
                         <span className="font-medium text-slate-700">{key}:</span>
-                        <span className="text-slate-900">{String(value)}</span>
+                        <span className="break-all text-slate-900">{String(value)}</span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm text-slate-500">No additional details</p>
+                  <p className="text-xs text-slate-500 sm:text-sm">No additional details</p>
                 )}
               </div>
 
-              <div className="rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
+              <div className="rounded-xl border border-slate-300 bg-slate-900 p-4 text-slate-100 shadow-lg sm:p-5">
                 <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                   </svg>
                   Full Credential JSON
                 </h3>
-                <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
+                <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-3 text-[10px] leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600 sm:p-4 sm:text-xs">
                   <code>{JSON.stringify(verifiedCredential, null, 2)}</code>
                 </pre>
               </div>
@@ -809,7 +809,7 @@ const VerificationPage = () => {
             <button
               type="button"
               onClick={handleVerifyAnother}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-3 text-base font-semibold tracking-wide text-white shadow-lg shadow-emerald-600/40 transition hover:from-emerald-700 hover:to-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold tracking-wide text-white shadow-lg shadow-emerald-600/40 transition hover:from-emerald-700 hover:to-emerald-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:px-6 sm:py-3 sm:text-base"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />

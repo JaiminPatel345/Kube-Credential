@@ -28,25 +28,28 @@ const JsonEditor = ({
     // Configure editor options
     editor.updateOptions({
       minimap: { enabled: false },
-      fontSize: 14,
+      fontSize: 13,
       lineNumbers: 'on',
       roundedSelection: false,
       scrollBeyondLastLine: false,
       automaticLayout: true,
-      tabSize: 4,
+      tabSize: 2,
       insertSpaces: true,
       wordWrap: 'on',
       wrappingIndent: 'indent',
       scrollbar: {
         vertical: 'auto',
         horizontal: 'auto',
-        verticalScrollbarSize: 10,
-        horizontalScrollbarSize: 10,
+        verticalScrollbarSize: 8,
+        horizontalScrollbarSize: 8,
       },
       autoClosingBrackets: 'always',
       autoClosingQuotes: 'always',
       formatOnPaste: true,
       formatOnType: true,
+      lineNumbersMinChars: 3,
+      glyphMargin: false,
+      folding: false,
     });
 
     // Focus editor if not disabled

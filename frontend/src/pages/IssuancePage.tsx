@@ -281,11 +281,11 @@ const IssuancePage = () => {
   return (
     <>
       <ErrorToast message={toastMessage} onClose={handleToastClose} />
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 md:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 sm:py-8 md:px-6 lg:px-8">
       <header className="flex flex-col gap-2 text-center md:text-left">
-        <p className="text-sm font-semibold uppercase tracking-widest text-brand-light">Kube Credential</p>
-        <h1 className="text-3xl font-bold text-slate-900 md:text-4xl">Issue a New Credential</h1>
-        <p className="text-base text-slate-600">
+        <p className="text-xs font-semibold uppercase tracking-widest text-brand-light sm:text-sm">Kube Credential</p>
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl md:text-4xl">Issue a New Credential</h1>
+        <p className="text-sm text-slate-600 sm:text-base">
           Provide the credential details below. The issuance service will generate a deterministic ID
           and securely hash the payload before syncing it with the verification network.
         </p>
@@ -304,8 +304,8 @@ const IssuancePage = () => {
       {/* Show form only when not loading and no credential issued */}
       {!isLoading && !issuedCredential && (
         <div className="grid gap-6 lg:grid-cols-1">
-        <section className={`rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200 ${!issuedCredential ? 'mx-auto w-full max-w-3xl' : ''}`}>
-          <form className="space-y-5" onSubmit={handleSubmit} noValidate>
+        <section className={`rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200 sm:p-6 ${!issuedCredential ? 'mx-auto w-full max-w-3xl' : ''}`}>
+          <form className="space-y-4 sm:space-y-5" onSubmit={handleSubmit} noValidate>
             {/* Mode Toggle */}
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <h2 className="text-lg font-semibold text-slate-900">Credential Input</h2>
@@ -317,7 +317,7 @@ const IssuancePage = () => {
             </div>
 
             {inputMode === 'simple' ? (
-              <div className="space-y-5">
+              <div className="space-y-4 sm:space-y-5">
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-700" htmlFor="name">
                     Name
@@ -327,14 +327,14 @@ const IssuancePage = () => {
                 name="name"
                 type="text"
                 autoComplete="name"
-                placeholder="Jane Doe"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60"
+                placeholder="Jaimin Detroja"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60 sm:px-4 sm:py-3 sm:text-base"
                 value={values.name}
                 onChange={handleChange('name')}
                 disabled={isLoading}
                 required
               />
-              {errors.name ? <p className="text-sm text-red-600">{errors.name}</p> : null}
+              {errors.name ? <p className="text-xs text-red-600 sm:text-sm">{errors.name}</p> : null}
             </div>
 
             <div className="space-y-2">
@@ -346,13 +346,13 @@ const IssuancePage = () => {
                 name="credentialType"
                 type="text"
                 placeholder="Kube Cluster Admin"
-                className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60"
+                className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/40 disabled:opacity-60 sm:px-4 sm:py-3 sm:text-base"
                 value={values.credentialType}
                 onChange={handleChange('credentialType')}
                 disabled={isLoading}
                 required
               />
-              {errors.credentialType ? <p className="text-sm text-red-600">{errors.credentialType}</p> : null}
+              {errors.credentialType ? <p className="text-xs text-red-600 sm:text-sm">{errors.credentialType}</p> : null}
             </div>
 
             <div className="space-y-4">
@@ -386,16 +386,16 @@ const IssuancePage = () => {
                   }}
                   placeholder='{\n  "name": "John Doe",\n  "credentialType": "Degree",\n  "details": {\n    "course": "Computer Science"\n  }\n}'
                   disabled={isLoading}
-                  height="400px"
+                  height="300px"
                   showFormatButton={true}
                 />
-                {errors.details ? <p className="text-sm text-red-600">{errors.details}</p> : null}
+                {errors.details ? <p className="text-xs text-red-600 sm:text-sm">{errors.details}</p> : null}
               </div>
             )}
 
             <div className="flex flex-col gap-3">
               {formFeedback && (
-                <div className={`rounded-lg border px-4 py-2.5 text-sm font-medium ${
+                <div className={`rounded-lg border px-3 py-2 text-xs font-medium sm:px-4 sm:py-2.5 sm:text-sm ${
                   formFeedback.color === 'text-blue-600' 
                     ? 'border-blue-200 bg-blue-50 text-blue-700'
                     : formFeedback.color === 'text-red-600'
@@ -408,7 +408,7 @@ const IssuancePage = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-blue-700 px-6 py-3 text-base font-semibold tracking-wide text-white shadow-lg shadow-brand/40 transition hover:from-brand-dark hover:to-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-blue-700 px-4 py-2.5 text-sm font-semibold tracking-wide text-white shadow-lg shadow-brand/40 transition hover:from-brand-dark hover:to-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60 sm:px-6 sm:py-3 sm:text-base"
               >
                 {isLoading ? (
                   <span className="inline-flex items-center gap-2">
@@ -432,42 +432,42 @@ const IssuancePage = () => {
 
       {/* Show results when credential is issued */}
       {issuedCredential && (
-        <section className="mx-auto w-full max-w-4xl rounded-2xl bg-white p-6 shadow-card ring-1 ring-slate-200">
-          <div className="flex flex-col gap-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-slate-900">Issued Credential</h2>
-                <span className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+        <section className="mx-auto w-full max-w-4xl rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200 sm:p-6">
+          <div className="flex flex-col gap-5 sm:gap-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">Issued Credential</h2>
+                <span className="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-700">
                   <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
                   Success
                 </span>
               </div>
 
               <dl className="grid grid-cols-1 gap-3 text-sm text-slate-700 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
                   <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Credential ID</dt>
-                  <dd className="truncate text-sm font-semibold text-slate-900" title={issuedCredential.id}>
+                  <dd className="break-all text-xs font-semibold text-slate-900 sm:text-sm" title={issuedCredential.id}>
                     {issuedCredential.id}
                   </dd>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
                   <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued By</dt>
-                  <dd className="text-sm font-semibold text-slate-900">{issuedCredential.issuedBy}</dd>
+                  <dd className="text-xs font-semibold text-slate-900 sm:text-sm">{issuedCredential.issuedBy}</dd>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
                   <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued At</dt>
-                  <dd className="text-sm font-semibold text-slate-900">{formatISODate(issuedCredential.issuedAt)}</dd>
+                  <dd className="text-xs font-semibold text-slate-900 sm:text-sm">{formatISODate(issuedCredential.issuedAt)}</dd>
                 </div>
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-sm">
+                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
                   <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Hash</dt>
-                  <dd className="text-sm font-semibold text-slate-900" title={issuedCredential.hash}>
+                  <dd className="break-all text-xs font-semibold text-slate-900 sm:text-sm" title={issuedCredential.hash}>
                     {truncateHash(issuedCredential.hash)}
                   </dd>
                 </div>
               </dl>
 
               <div className="space-y-3">
-                <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-slate-900 sm:text-sm">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
@@ -476,26 +476,26 @@ const IssuancePage = () => {
                   {issuedCredential.details && typeof issuedCredential.details === 'object' && Object.keys(issuedCredential.details).length > 0 ? (
                     <ul className="space-y-2">
                       {Object.entries(issuedCredential.details).map(([key, value]) => (
-                        <li key={key} className="flex items-start gap-2 text-sm">
+                        <li key={key} className="flex items-start gap-2 text-xs sm:text-sm">
                           <span className="text-slate-400">•</span>
                           <span className="font-medium text-slate-700">{key}:</span>
-                          <span className="text-slate-900">{String(value)}</span>
+                          <span className="break-all text-slate-900">{String(value)}</span>
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-slate-500">No additional details</p>
+                    <p className="text-xs text-slate-500 sm:text-sm">No additional details</p>
                   )}
                 </div>
 
-                <div className="grow rounded-xl border border-slate-300 bg-slate-900 p-5 text-slate-100 shadow-lg">
+                <div className="grow rounded-xl border border-slate-300 bg-slate-900 p-4 text-slate-100 shadow-lg sm:p-5">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
                     </svg>
                     Full Credential JSON
                   </h3>
-                  <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-4 text-xs leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600">
+                  <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-3 text-[10px] leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600 sm:p-4 sm:text-xs">
                     <code>{createCredentialJson(issuedCredential)}</code>
                   </pre>
                 </div>
@@ -505,7 +505,7 @@ const IssuancePage = () => {
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2.5 text-xs font-semibold text-blue-700 shadow-sm transition hover:border-blue-300 hover:bg-blue-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 sm:px-4 sm:py-3 sm:text-sm"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -515,7 +515,7 @@ const IssuancePage = () => {
                 <button
                   type="button"
                   onClick={() => issuedCredential && downloadCredential(issuedCredential)}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3 text-sm font-semibold text-purple-700 shadow-sm transition hover:border-purple-300 hover:bg-purple-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-purple-200 bg-purple-50 px-3 py-2.5 text-xs font-semibold text-purple-700 shadow-sm transition hover:border-purple-300 hover:bg-purple-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-purple-600 sm:px-4 sm:py-3 sm:text-sm"
                 >
                   <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -528,7 +528,7 @@ const IssuancePage = () => {
               <button
                 type="button"
                 onClick={handleIssueAnother}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-blue-700 px-6 py-3 text-base font-semibold tracking-wide text-white shadow-lg shadow-brand/40 transition hover:from-brand-dark hover:to-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-brand to-blue-700 px-4 py-2.5 text-sm font-semibold tracking-wide text-white shadow-lg shadow-brand/40 transition hover:from-brand-dark hover:to-blue-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand sm:px-6 sm:py-3 sm:text-base"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
