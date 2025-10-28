@@ -47,7 +47,6 @@ export const createApp = () => {
     res.status(404).json({ success: false, message: 'Not Found' });
   });
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof ZodError) {
       const formattedIssues = err.issues.map((issue) => ({

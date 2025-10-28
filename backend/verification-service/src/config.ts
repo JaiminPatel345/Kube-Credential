@@ -43,7 +43,7 @@ const resolveDatabasePath = (value: string | undefined): string => {
 };
 
 const workerId = process.env.HOSTNAME?.trim() || 'verification-service';
-const syncSecret = process.env.SYNC_SECRET?.trim() || null;
+const syncSecret = process.env.SYNC_SECRET?.trim() || 'anyThingSecretForSync';
 
 const parseFrontendUrl = (value: string | undefined): string => {
   const raw = value?.trim();
