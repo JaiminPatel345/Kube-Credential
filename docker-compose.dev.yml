@@ -9,6 +9,7 @@ services:
       NODE_ENV: development
       PORT: 3001
       DATABASE_PATH: /data/credentials.db
+      WORKER_COUNT: ${WORKER_COUNT:-3}
       HOSTNAME: issuance-service
       VERIFICATION_SERVICE_URL: http://verification-service:3002
       SYNC_SECRET: ${SYNC_SECRET:-please_hire_me}
@@ -30,6 +31,7 @@ services:
       NODE_ENV: development
       PORT: 3002
       DATABASE_PATH: /data/verification.db
+      WORKER_COUNT: ${WORKER_COUNT:-3}
       HOSTNAME: verification-service
       SYNC_SECRET: ${SYNC_SECRET:-please_hire_me}
       ISSUANCE_SERVICE_URL: http://issuance-service:3001

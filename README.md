@@ -71,6 +71,7 @@ Create a `.env` file in `backend/issuance-service/` (see `.env.example` for refe
 | `HOSTNAME`       | system hostname   | Worker identifier for responses                 |
 | `VERIFICATION_SERVICE_URL` | `http://localhost:3002` | Base URL for verification service sync calls |
 | `SYNC_SECRET`    | _(unset)_         | Optional shared secret sent on sync requests   |
+| `WORKER_COUNT`   | `1`               | Optional: number of worker processes to spawn. If unset defaults to 1. Set to number of CPU cores for production or manage via orchestration. |
 
 ### Local Development
 
@@ -81,6 +82,16 @@ yarn dev
 ```
 
 Access the health endpoint at `http://localhost:3001/health`.
+
+Running multiple workers locally (clustered):
+
+```bash
+# Start with 3 workers (development)
+WORKER_COUNT=3 yarn dev
+
+# Or run the built app with multiple workers
+WORKER_COUNT=3 yarn start
+```
 
 ### Run Tests
 
@@ -120,12 +131,23 @@ Refer to [`backend/verification-service/README.md`](backend/verification-service
 | `SYNC_SECRET`          | _(unset)_              | Optional shared secret required on `/internal/sync` calls               |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated list of allowed browser origins (`*` permits all)       |
 | `ISSUANCE_SERVICE_URL` | `http://localhost:3001` | Base URL used for the startup catch-up sync with the issuance service |
+| `WORKER_COUNT`         | `1`                    | Optional: number of worker processes to spawn. If unset defaults to 1. Set to number of CPU cores for production or manage via orchestration. |
 
 ### Run Tests
 
 ```bash
 cd backend/verification-service
 yarn test
+```
+
+Running multiple workers locally (clustered):
+
+```bash
+# Start verification service with 3 workers
+WORKER_COUNT=3 yarn dev
+
+# Or run the built app with multiple workers
+WORKER_COUNT=3 yarn start
 ```
 
 ## Docker Compose

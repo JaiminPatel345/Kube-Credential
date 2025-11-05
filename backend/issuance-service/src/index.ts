@@ -1,11 +1,13 @@
 import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
+import cluster from 'cluster';
 import issueRoutes from './routes/issueRoutes';
 import internalRoutes from './routes/internalRoutes';
 import { AppError, isAppError } from './utils/errors';
 import { getWorkerLabel, serviceConfig } from './config';
 import { initializeDatabase } from './utils/database';
+import { setupMaster, notifyReady, getWorkerCount } from './cluster';
 
 export const createApp = () => {
   const app = express();
@@ -77,22 +79,42 @@ export const createApp = () => {
   return app;
 };
 
-const app = createApp();
+const startWorker = async () => {
+  try {
+    await initializeDatabase();
+    
+    const app = createApp();
+    const { port } = serviceConfig;
+    const workerId = getWorkerLabel();
 
-if (process.env.NODE_ENV !== 'test') {
-  initializeDatabase()
-    .then(() => {
-      const { port } = serviceConfig;
-      app.listen(port, () => {
-        // eslint-disable-next-line no-console
-        console.info(`Issuance service listening on port ${port}`);
-      });
-    })
-    .catch((error) => {
+    app.listen(port, () => {
       // eslint-disable-next-line no-console
-      console.error('Failed to initialize database', error);
-      process.exit(1);
+      console.info(`[${workerId}] Issuance service listening on port ${port}`);
+      notifyReady();
     });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to start worker', error);
+    process.exit(1);
+  }
+};
+
+// Main execution logic
+if (process.env.NODE_ENV !== 'test') {
+  const workerCount = getWorkerCount();
+  
+  if (workerCount > 1) {
+    // Multi-worker cluster mode
+    if (cluster.isPrimary || cluster.isMaster) {
+      setupMaster('Issuance Service');
+    } else {
+      startWorker();
+    }
+  } else {
+    // Single worker mode (no clustering)
+    startWorker();
+  }
 }
 
+const app = createApp();
 export default app;

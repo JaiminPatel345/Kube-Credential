@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import cluster from 'cluster';
 
 dotenv.config();
 
@@ -42,7 +43,23 @@ const resolveDatabasePath = (value: string | undefined): string => {
   return resolvedPath;
 };
 
-const workerId = process.env.HOSTNAME?.trim() || 'unknown';
+const getProcessWorkerId = (): string => {
+  // Check if running in a cluster
+  if (cluster.isWorker && cluster.worker) {
+    return `worker-${cluster.worker.id}`;
+  }
+  
+  // Fall back to HOSTNAME environment variable (for Docker/Kubernetes)
+  const hostname = process.env.HOSTNAME?.trim();
+  if (hostname) {
+    return hostname;
+  }
+  
+  // Default
+  return 'worker-1';
+};
+
+const workerId = getProcessWorkerId();
 
 const parseFrontendUrl = (value: string | undefined): string => {
   const raw = value?.trim();

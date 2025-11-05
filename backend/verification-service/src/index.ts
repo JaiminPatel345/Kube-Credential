@@ -1,11 +1,13 @@
 import cors from 'cors';
 import express, { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
+import cluster from 'cluster';
 import router from './routes';
 import { AppError, isAppError } from './utils/errors';
 import { getWorkerLabel, serviceConfig } from './config';
 import { initializeDatabase } from './utils/database';
 import { performCatchUpSync } from './utils/sync';
+import { setupMaster, notifyReady, getWorkerCount } from './cluster';
 
 const FIELD_LABELS: Record<string, string> = {
   id: 'Id',
@@ -113,38 +115,63 @@ export const createApp = () => {
   return app;
 };
 
-const app = createApp();
-
-if (process.env.NODE_ENV !== 'test') {
-  initializeDatabase()
-    .then(async () => {
-      try {
-        const inserted = await performCatchUpSync();
-        if (inserted > 0) {
-          // eslint-disable-next-line no-console
-          console.info(`Catch-up sync imported ${inserted} credential(s)`);
-        }
-      } catch (error) {
-        if (error instanceof AppError) {
-          // eslint-disable-next-line no-console
-          console.error('Catch-up sync failed', { message: error.message, status: error.statusCode });
-        } else {
-          // eslint-disable-next-line no-console
-          console.error('Catch-up sync failed', error);
-        }
-      }
-
-      const { port } = serviceConfig;
-      app.listen(port, () => {
+const startWorker = async () => {
+  try {
+    await initializeDatabase();
+    
+    const workerId = getWorkerLabel();
+    
+    // Perform catch-up sync
+    try {
+      const inserted = await performCatchUpSync();
+      if (inserted > 0) {
         // eslint-disable-next-line no-console
-        console.info(`Verification service listening on port ${port}`);
-      });
-    })
-    .catch((error) => {
+        console.info(`[${workerId}] Catch-up sync imported ${inserted} credential(s)`);
+      }
+    } catch (error) {
+      if (error instanceof AppError) {
+        // eslint-disable-next-line no-console
+        console.error(`[${workerId}] Catch-up sync failed`, { 
+          message: error.message, 
+          status: error.statusCode 
+        });
+      } else {
+        // eslint-disable-next-line no-console
+        console.error(`[${workerId}] Catch-up sync failed`, error);
+      }
+    }
+
+    const app = createApp();
+    const { port } = serviceConfig;
+
+    app.listen(port, () => {
       // eslint-disable-next-line no-console
-      console.error('Failed to initialize database', error);
-      process.exit(1);
+      console.info(`[${workerId}] Verification service listening on port ${port}`);
+      notifyReady();
     });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to start worker', error);
+    process.exit(1);
+  }
+};
+
+// Main execution logic
+if (process.env.NODE_ENV !== 'test') {
+  const workerCount = getWorkerCount();
+  
+  if (workerCount > 1) {
+    // Multi-worker cluster mode
+    if (cluster.isPrimary || cluster.isMaster) {
+      setupMaster('Verification Service');
+    } else {
+      startWorker();
+    }
+  } else {
+    // Single worker mode (no clustering)
+    startWorker();
+  }
 }
 
+const app = createApp();
 export default app;

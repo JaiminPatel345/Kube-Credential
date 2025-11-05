@@ -7,8 +7,12 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rimraf dist",
     "dev": "cross-env NODE_ENV=development ts-node-dev --respawn --transpile-only src/index.ts",
+    "dev:cluster": "cross-env NODE_ENV=development WORKER_COUNT=3 ts-node-dev --respawn --transpile-only src/index.ts",
     "start": "node dist/index.js",
-    "test": "jest"
+    "start:cluster": "cross-env WORKER_COUNT=3 node dist/index.js",
+    "test": "jest",
+    "test:load": "jest tests/load.test.ts --runInBand --detectOpenHandles",
+    "test:cluster": "jest tests/cluster.test.ts"
   },
   "keywords": [],
   "author": "Jaimin Detroja",

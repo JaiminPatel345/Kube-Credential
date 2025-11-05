@@ -69,6 +69,7 @@ FROM node:20-slim AS production
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV DATABASE_PATH=/data/credentials.db
+ENV WORKER_COUNT=1
 
 WORKDIR /app
 
