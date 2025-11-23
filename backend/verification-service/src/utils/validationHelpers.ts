@@ -114,15 +114,18 @@ export const createRequiredStringSchema = (fieldName: string, maxLength: number 
 };
 
 /**
- * Creates a Zod schema for ISO date string validation
+ * Creates a Zod schema for date string validation (YYYY-MM-DD format)
  */
 export const createISODateSchema = (fieldName: string = 'Date') => {
   return z
     .string({ required_error: `${fieldName} is required` })
     .trim()
     .min(1, { message: `${fieldName} is required` })
+    .regex(/^\d{4}-\d{2}-\d{2}$/, {
+      message: `${fieldName} must be in YYYY-MM-DD format`
+    })
     .refine((value: string) => !Number.isNaN(Date.parse(value)), {
-      message: `${fieldName} must be a valid ISO date string`
+      message: `${fieldName} must be a valid date`
     });
 };
 

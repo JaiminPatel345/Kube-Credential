@@ -15,7 +15,7 @@ const buildCredentialPayload = (
   credentialType: data.credentialType,
   details: data.details,
   issuedBy: serviceConfig.workerId,
-  issuedAt: new Date().toISOString()
+  issuedAt: new Date().toISOString().split('T')[0]
 });
 
 export const issueCredential: RequestHandler = async (req, res, next) => {

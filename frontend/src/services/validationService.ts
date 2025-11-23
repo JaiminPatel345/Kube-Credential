@@ -156,7 +156,7 @@ export const validateVerificationCredential = (
   if (!isValidNonEmptyString(data.issuedAt)) {
     errors.issuedAt = 'Issued At is required';
   } else if (!isValidISODate(data.issuedAt!)) {
-    errors.issuedAt = 'Issued At must be a valid ISO date string';
+    errors.issuedAt = 'Issued At must be in YYYY-MM-DD format';
   }
 
   // Validate hash

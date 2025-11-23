@@ -650,8 +650,8 @@ const VerificationPage = () => {
                         </label>
                         <input
                           id="issuedAt"
-                          type="text"
-                          placeholder="2024-01-01T12:00:00Z"
+                          type="date"
+                          placeholder="YYYY-MM-DD"
                           value={formData.issuedAt}
                           onChange={handleFieldChange('issuedAt')}
                           disabled={isLoading}
@@ -856,7 +856,7 @@ const VerificationPage = () => {
                         <div>
                           <dt className="text-xs font-medium text-slate-500">Issued At</dt>
                           <dd className="mt-1 text-xs font-semibold text-slate-900 sm:text-sm">
-                            {verifiedCredential?.issuedAt ? new Date(verifiedCredential.issuedAt).toLocaleString() : 'N/A'}
+                            {verifiedCredential?.issuedAt || 'N/A'}
                           </dd>
                         </div>
                         <div>

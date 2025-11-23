@@ -245,10 +245,15 @@ export const removeDuplicateKeys = (
 };
 
 /**
- * Validates an ISO date string
+ * Validates a date string in YYYY-MM-DD format
  */
 export const isValidISODate = (dateString: string): boolean => {
   if (!dateString || typeof dateString !== 'string') {
+    return false;
+  }
+  
+  // Check format YYYY-MM-DD
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
     return false;
   }
   
@@ -306,7 +311,7 @@ export const validateCredentialFields = (data: {
   if (!isValidNonEmptyString(data.issuedAt)) {
     errors.issuedAt = 'Issued At is required';
   } else if (!isValidISODate(data.issuedAt!)) {
-    errors.issuedAt = 'Issued At must be a valid ISO date string';
+    errors.issuedAt = 'Issued At must be in YYYY-MM-DD format';
   }
 
   if (!isValidNonEmptyString(data.hash)) {
