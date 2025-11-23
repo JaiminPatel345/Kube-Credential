@@ -73,6 +73,7 @@ const VerificationPage = () => {
   const [duplicateWarningMessage, setDuplicateWarningMessage] = useState('');
   const [pendingAction, setPendingAction] = useState<'submit' | 'modeSwitch' | null>(null);
   const [pendingMode, setPendingMode] = useState<'simple' | 'raw' | null>(null);
+  const [resultView, setResultView] = useState<'formatted' | 'json'>('formatted');
 
   const isLoading = requestState.status === 'loading';
   const verificationResult = requestState.status === 'success' ? requestState.payload : null;
@@ -470,6 +471,7 @@ const VerificationPage = () => {
     setShowValidationErrors(false);
     setToastMessage(null);
     setEditorKey(prev => prev + 1);
+    setResultView('formatted');
   };
 
   const handleToastClose = () => setToastMessage(null);
@@ -784,54 +786,107 @@ const VerificationPage = () => {
           <section className="mx-auto w-full max-w-4xl rounded-2xl bg-white p-4 shadow-card ring-1 ring-slate-200 sm:p-6">
             <div className="flex flex-col gap-4 sm:gap-5">
               {renderStatusBadge()}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
-                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued By</dt>
-                  <dd className="text-xs font-semibold text-slate-900 sm:text-sm">
-                    {verificationResult?.issuedBy ?? 'Unknown'}
-                  </dd>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
-                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Issued At</dt>
-                  <dd className="text-xs font-semibold text-slate-900 sm:text-sm">
-                    {verificationResult?.issuedAt ? new Date(verificationResult.issuedAt).toLocaleString() : 'Unknown'}
-                  </dd>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
-                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Verified By</dt>
-                  <dd className="text-xs font-semibold text-slate-900 sm:text-sm">
-                    {verificationResult?.verifiedBy ?? 'Unknown'}
-                  </dd>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm sm:p-4">
-                  <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500">Credential Type</dt>
-                  <dd className="text-xs font-semibold text-slate-900 sm:text-sm">{verifiedCredential?.credentialType ?? 'Unknown'}</dd>
-                </div>
+
+              {/* Verification Info */}
+              <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100 p-3 shadow-sm sm:p-4">
+                <dt className="mb-1 text-xs font-medium uppercase tracking-wider text-blue-600">Verified By</dt>
+                <dd className="text-xs font-semibold text-blue-900 sm:text-sm">
+                  {verificationResult?.verifiedBy ?? 'Unknown'}
+                </dd>
               </div>
 
-              <div className="space-y-3">
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-slate-900 sm:text-sm">
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    Credential Details
-                  </h3>
-                  {verifiedCredential?.details && typeof verifiedCredential.details === 'object' && Object.keys(verifiedCredential.details).length > 0 ? (
-                    <ul className="space-y-2">
-                      {Object.entries(verifiedCredential.details).map(([key, value]) => (
-                        <li key={key} className="flex items-start gap-2 text-xs sm:text-sm">
-                          <span className="text-slate-400">•</span>
-                          <span className="font-medium text-slate-700">{key}:</span>
-                          <span className="break-all text-slate-900">{String(value)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-xs text-slate-500 sm:text-sm">No additional details</p>
-                  )}
-                </div>
+              {/* View Toggle */}
+              <div className="flex items-center justify-center gap-2 p-1 bg-slate-100 rounded-xl w-fit mx-auto">
+                <button
+                  type="button"
+                  onClick={() => setResultView('formatted')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                    resultView === 'formatted'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Formatted View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setResultView('json')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                    resultView === 'json'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  JSON View
+                </button>
+              </div>
 
+              {/* Submitted Credential Data - Formatted View */}
+              {resultView === 'formatted' && (
+                <div className="space-y-3">
+                  <h3 className="text-sm font-semibold text-slate-700">Submitted Credential Data</h3>
+                  
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <dt className="text-xs font-medium text-slate-500">ID</dt>
+                          <dd className="mt-1 text-xs font-mono text-slate-900 break-all sm:text-sm">{verifiedCredential?.id || 'N/A'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-slate-500">Name</dt>
+                          <dd className="mt-1 text-xs font-semibold text-slate-900 sm:text-sm">{verifiedCredential?.name || 'N/A'}</dd>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <dt className="text-xs font-medium text-slate-500">Credential Type</dt>
+                          <dd className="mt-1 text-xs font-semibold text-slate-900 sm:text-sm">{verifiedCredential?.credentialType || 'N/A'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-slate-500">Issued By</dt>
+                          <dd className="mt-1 text-xs font-semibold text-slate-900 sm:text-sm">
+                            {verifiedCredential?.issuedBy || 'N/A'}
+                          </dd>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                          <dt className="text-xs font-medium text-slate-500">Issued At</dt>
+                          <dd className="mt-1 text-xs font-semibold text-slate-900 sm:text-sm">
+                            {verifiedCredential?.issuedAt ? new Date(verifiedCredential.issuedAt).toLocaleString() : 'N/A'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-xs font-medium text-slate-500">Hash</dt>
+                          <dd className="mt-1 text-xs font-mono text-slate-900 break-all sm:text-sm">{verifiedCredential?.hash || 'N/A'}</dd>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-200">
+                        <dt className="mb-2 text-xs font-medium text-slate-500">Additional Details</dt>
+                        {verifiedCredential?.details && typeof verifiedCredential.details === 'object' && Object.keys(verifiedCredential.details).length > 0 ? (
+                          <dl className="space-y-2">
+                            {Object.entries(verifiedCredential.details).map(([key, value]) => (
+                              <div key={key} className="flex items-start gap-2 text-xs sm:text-sm">
+                                <dt className="font-medium text-slate-600 min-w-[120px]">{key}:</dt>
+                                <dd className="break-all text-slate-900 flex-1">{String(value)}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        ) : (
+                          <p className="text-xs text-slate-400 sm:text-sm">No additional details</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* JSON View */}
+              {resultView === 'json' && (
                 <div className="rounded-xl border border-slate-300 bg-slate-900 p-4 text-slate-100 shadow-lg sm:p-5">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -839,11 +894,11 @@ const VerificationPage = () => {
                     </svg>
                     Full Credential JSON
                   </h3>
-                  <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/70 p-3 text-[10px] leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600 sm:p-4 sm:text-xs">
+                  <pre className="max-h-96 overflow-auto rounded-lg bg-slate-950/70 p-3 text-[10px] leading-relaxed scrollbar-thin scrollbar-track-slate-800 scrollbar-thumb-slate-600 sm:p-4 sm:text-xs">
                     <code>{JSON.stringify(verifiedCredential, null, 2)}</code>
                   </pre>
                 </div>
-              </div>
+              )}
 
               {/* Verify Another Button */}
               <button

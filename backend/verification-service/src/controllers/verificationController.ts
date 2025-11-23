@@ -59,8 +59,6 @@ export const verifyCredential: RequestHandler = (req, res, next) => {
       return res.status(200).json({
         valid: false,
         message: 'Credential data mismatch',
-        issuedBy: record.issuedBy,
-        issuedAt: record.issuedAt,
         verifiedBy: getWorkerLabel()
       });
     }
