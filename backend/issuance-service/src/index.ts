@@ -88,7 +88,6 @@ const startWorker = async () => {
     const workerId = getWorkerLabel();
 
     app.listen(port, () => {
-      // eslint-disable-next-line no-console
       console.info(`[${workerId}] Issuance service listening on port ${port}`);
       notifyReady();
     });
@@ -105,7 +104,7 @@ if (process.env.NODE_ENV !== 'test') {
   
   if (workerCount > 1) {
     // Multi-worker cluster mode
-    if (cluster.isPrimary || cluster.isMaster) {
+    if (cluster.isPrimary) {
       setupMaster('Issuance Service');
     } else {
       startWorker();

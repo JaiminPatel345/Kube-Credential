@@ -35,7 +35,7 @@ export const getWorkerCount = (): number => {
  * Returns 'master' for the master process, or 'worker-N' for worker processes
  */
 export const getWorkerId = (): string => {
-  if (cluster.isPrimary || cluster.isMaster) {
+  if (cluster.isPrimary) {
     return 'master';
   }
   

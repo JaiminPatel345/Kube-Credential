@@ -162,7 +162,7 @@ if (process.env.NODE_ENV !== 'test') {
   
   if (workerCount > 1) {
     // Multi-worker cluster mode
-    if (cluster.isPrimary || cluster.isMaster) {
+    if (cluster.isPrimary) {
       setupMaster('Verification Service');
     } else {
       startWorker();
